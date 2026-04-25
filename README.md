@@ -4,6 +4,8 @@
 
 通过 **基本面叙事 + 技术面鱼身定位 + AI Agent 推理** 三层共振模型，输出可执行的波段持仓决策（含仓位倍数 + 风控）。
 
+> **策略边界**: 当前框架默认只评估做多波段；空头趋势用于回避/观察，不主动输出做空建议。
+
 ---
 
 ## 核心理念
@@ -26,8 +28,8 @@
 │  ├─ 业绩超预期? (yfinance.earnings_history)             │
 │  ├─ 行业景气? (sector ETF 5d/20d 趋势)                  │
 │  ├─ 机构看多? (analysts rating + target_mean)           │
-│  └─ 财报窗口? (next_earnings.in_window)                 │
-│  → narrative.score (0-10) + thesis (strong/moderate/weak)│
+│  └─ 财报窗口? → earnings_catalyst                       │
+│  → narrative.score + thesis + earnings_catalyst          │
 └─────────────────────────────────────────────────────────┘
               ↓
        [决策门 1] thesis=weak 且 score<4 → 拦截不做
@@ -131,7 +133,10 @@ uv run python scripts/batch_scan.py --with-fund --delay 1.5
 | 鱼尾 (late) | any | weakening | **0×** | — | 衰竭信号, 拒绝入场 |
 
 **调整因子** (在仓位倍数基础上修正):
-- 财报 14 天内: ×0.5
+- strong 叙事 + `earnings_catalyst=true`: 财报窗口不打折, 但不自动升档
+- moderate 叙事: 矩阵基础倍数 ×0.5, 下限 0.3×
+- 中性叙事 + 财报窗口: ×0.7
+- 弱叙事 + 财报窗口: ×0.3 或回避
 - RSI 超买 + 鱼尾: ×0.7
 - 已超分析师目标价: ×0.7
 

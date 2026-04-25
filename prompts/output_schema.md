@@ -2,6 +2,8 @@
 
 分析报告必须严格按以下结构输出，每个板块引用具体数据依据。
 
+> **策略边界**: 本模板默认只输出做多波段建议；`bearish` 趋势用于回避/观察，不主动输出做空建议。
+
 ---
 
 ### 完整模板 (基本面通过 + Gate 通过)
@@ -19,6 +21,7 @@
 - **行业**: {sector} / {industry}, ETF {etf} 20d {change_20d}% ({trend 中文})
 - **评级**: {rating} (均值 {rating_score}), 目标价 ${target_mean} ({upside_pct}% 空间)
 - **下次财报**: {date} ({days_until} 天后, {in_window ? "⚠️ 窗口内" : "窗口外"})
+- **财报催化剂**: {earnings_catalyst ? "✅ 是" : "否"} (优先使用 narrative.earnings_catalyst; 字段缺失时用 in_window && score>=6 fallback)
 - **驱动**: {drivers}
 - **隐忧**: {concerns}
 
@@ -53,7 +56,9 @@
 | 鱼身阶段 | {stage 中文} | 基础 {X}× |
 | 动力 | {verdict 中文} | {维持/调整} |
 | ideal_entry | {true/false} | {如适用} |
-| 调整因子 | {若有: 财报临近/RSI 超买/已超目标价} | ×{0.5-0.7} |
+| 叙事折扣 | {若 thesis=moderate: 矩阵基础倍数 ×0.5, 下限 0.3×; strong 则无折扣} | {×1 / ×0.5} |
+| 财报因子 | {earnings_catalyst=true 不因财报打折且不自动升档; 中性叙事财报窗口 ×0.7; 弱叙事财报窗口 ×0.3 或回避} | {如适用} |
+| 调整因子 | {若有: RSI 超买+鱼尾 / 已超目标价; 目标价空间为负是估值过热风险, 可与 narrative 扣分共同构成双层风控} | ×{0.7} |
 | **最终仓位倍数** | | **{X.XX}×** |
 
 **最终单笔风险**: {X.XX}× × {基础 risk_pct}% = **{Y}% 账户**
@@ -69,14 +74,16 @@
 ### 🛡️ 风控建议
 
 - **入场**: ${entry} | **止损**: ${stop} ({atr_multiple} ATR, 偏离 {stop_pct}%)
+- **阶段化风控**: {鱼头: 1.8-2.0 ATR/EMA50; 鱼身: 1.5 ATR/EMA20; 鱼尾: 1.0-1.5 ATR/前2日低点}
 - **目标**:
   - 第一目标: ${analyst_target} (1-2 周可期, 盈亏比 {ratio_1}:1)
   - 2R 目标: ${target_2r} (3-4 周, 盈亏比 2:1)
   - 3R 目标: ${target_3r} (盈亏比 3:1)
 - **仓位**: {position_size} 股 (${position_value}, 占资金 {position_pct}%)
 - **最大亏损**: ${max_loss} ({risk_pct}% 账户)
-- **持仓周期**: {1-2 周 / 财报前减仓}
-- **加仓条件**: {若 ideal_entry=false: 等回调到 EMA20 企稳放量后加到 1.0×}
+- **持仓周期**: {1-2 周 / 财报催化剂持有过财报后第一根 K 线评估 / 非催化剂财报前一天评估减仓}
+- **加仓条件**: {若 ideal_entry=false: 回踩 EMA20 或前高支撑不破 + 次日收阳/站回短期均线 + volume_ratio>=1.0 或动力未恶化; 加仓后总风险不超过矩阵标准倍数}
+- **财报后评估**: {若 earnings_catalyst=true: 缺口不回补/守住财报前高点=兑现; 高开低走/跌破财报前低点/放量长上影=衰竭}
 - **出局信号**:
   - 趋势破位 (Gate FAIL / 价格跌破 EMA20)
   - 触及止损 ${stop}
@@ -121,6 +128,12 @@
 ## {TICKER} 波段分析报告 | {DATE}
 
 **部分数据缺失**: {缺失字段列表}
+
+**处理规则**:
+- 基本面缺失 + Gate PASS + 鱼头/鱼身: 可按技术单驱动小仓位观察，建议矩阵结果 ×0.5。
+- 基本面缺失 + 鱼尾: 默认不追高，加入 Watchlist。
+- 技术面缺失: 不给入场建议，仅说明缺失字段。
+
 基于可获得数据的有限分析: ...
 ```
 
@@ -143,7 +156,7 @@
 
 | 模板字段 | 来源 |
 |---------|------|
-| thesis, score, drivers, concerns | FundamentalsReport.narrative |
+| thesis, score, earnings_catalyst, drivers, concerns | FundamentalsReport.narrative |
 | eps_*, last_report_date | FundamentalsReport.earnings |
 | sector, industry, etf, change_20d | FundamentalsReport.sector |
 | rating, target_mean, upside_pct | FundamentalsReport.analysts |

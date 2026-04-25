@@ -30,6 +30,7 @@ swing scan AAPL,MSFT,NVDA   — 指定品种
 ```
 
 > **数据约束**: 技术面分析仅限 Bitget 已上线的 RWA 合约品种 (68 个)。基本面来自 yfinance + Finnhub。
+> **策略边界**: 当前框架默认只评估做多波段；`bearish` 趋势用于回避/观察，不主动输出做空建议。
 
 ---
 
@@ -38,7 +39,7 @@ swing scan AAPL,MSFT,NVDA   — 指定品种
 ```
 Stage 0: 基本面叙事审查 (fundamentals.py)
   └── 业绩超预期? 行业景气? 机构看多? 财报窗口?
-  └── 输出 narrative.score (0-10) + thesis (strong/moderate/weak)
+  └── 输出 narrative.score (0-10) + thesis (strong/moderate/weak) + earnings_catalyst
         ↓
 [决策门 1] thesis=weak 且 score<4 → 直接拦截, 不做
         ↓
@@ -91,7 +92,7 @@ Stage 3: 风控计算 + 输出报告 (output_schema.md)
 uv run python scripts/fundamentals.py <TICKER>
 ```
 
-读取 `narrative.score` 与 `narrative.thesis`:
+读取 `narrative.score`、`narrative.thesis` 与 `narrative.earnings_catalyst`:
 
 - **拦截分支 A**: `thesis == "weak"` 且 `score < 4`
   → 输出 `output_schema.md` 中的 "分支 A: 基本面拦截" 模板
