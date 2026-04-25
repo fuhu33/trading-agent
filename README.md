@@ -35,7 +35,7 @@
        [决策门 1] thesis=weak 且 score<4 → 拦截不做
               ↓
 ┌─────────────────────────────────────────────────────────┐
-│  Stage 1: 技术 Gate + 鱼身定位 (trend_analysis.py)       │
+│  Stage 1: 技术 Gate + 鱼身定位 (trend.py)              │
 │  ├─ 趋势成立? (ADX>=20 + EMA 排列 → Gate)              │
 │  └─ 鱼身位置? (启动时长 + 累计涨幅 + 偏离度)             │
 │  → fish_body.stage (early/mid/late) + ideal_entry       │
@@ -49,7 +49,7 @@
 └─────────────────────────────────────────────────────────┘
               ↓
 ┌─────────────────────────────────────────────────────────┐
-│  Stage 3: 风控 + 报告 (risk_calculator.py)               │
+│  Stage 3: 风控 + 报告 (risk.py)                         │
 │  ├─ ATR 止损 + 分阶段目标价                              │
 │  └─ 按 output_schema.md 模板输出                         │
 └─────────────────────────────────────────────────────────┘
@@ -80,23 +80,23 @@ cp .env.example .env
 # 通过 SKILL.md 触发 Antigravity Agent (推荐)
 swing NVDA
 
-# 或直接跑脚本三连击
-uv run python scripts/fundamentals.py NVDA      # Stage 0
-uv run python scripts/trend_analysis.py NVDA    # Stage 1
-uv run python scripts/risk_calculator.py --entry 209 --stop 195 --atr 4.89
+# 或直接跑 CLI
+uv run trading-agent fund NVDA      # Stage 0
+uv run trading-agent trend NVDA     # Stage 1
+uv run trading-agent risk --entry 209 --stop 195 --atr 4.89
 ```
 
 ### 批量扫描
 
 ```bash
 # 仅技术面 (快, 约 1-2 分钟)
-uv run python scripts/batch_scan.py --group mega_cap --delay 1.5
+uv run trading-agent scan --group mega_cap --delay 1.5
 
 # 技术面 + 基本面 (慢但更准, 约 3-5 分钟)
-uv run python scripts/batch_scan.py --group mega_cap --delay 1.5 --with-fund
+uv run trading-agent scan --group mega_cap --delay 1.5 --with-fund
 
 # 全量 RWA 品种 (68 只, 约 10 分钟)
-uv run python scripts/batch_scan.py --with-fund --delay 1.5
+uv run trading-agent scan --with-fund --delay 1.5
 ```
 
 ---
@@ -113,6 +113,8 @@ uv run python scripts/batch_scan.py --with-fund --delay 1.5
 | `swing scan` | 全量 RWA 扫描 (仅技术) | 部分 |
 | `swing scan --with-fund` | 扫描 + 基本面 (推荐三层共振筛选) | 部分 |
 | `swing scan --group mega_cap` | 大盘科技股扫描 | 部分 |
+| `swing report NVDA` | 生成 HTML K线图交互报告 | ❌ |
+| `swing report NVDA --serve` | 本地服务器预览报告 | ❌ |
 | `swing sync` | 同步 Bitget 品种列表 | ❌ |
 
 ---
@@ -149,20 +151,30 @@ trading-agent/
 ├── README.md                    # 本文件
 ├── SKILL.md                     # Antigravity Skill 入口 (触发规则 + 工作流)
 ├── TODO.md                      # 详细开发追踪 (Phase 1-4)
-├── pyproject.toml               # 依赖管理 (uv)
+├── pyproject.toml               # 依赖管理 (uv + hatchling)
 ├── .env.example / .env          # Finnhub API Key (.env gitignored)
 │
-├── scripts/                     # 6 个核心脚本
-│   ├── sync_bitget_symbols.py   # Bitget RWA 品种同步 (68 只)
-│   ├── fetch_data.py            # K 线获取 (Bitget API)
+├── src/trading_agent/           # 核心包
+│   ├── __init__.py              # 包入口
+│   ├── cli.py                   # 统一 CLI 入口
+│   ├── exceptions.py            # 异常层级
+│   ├── utils.py                 # 共用工具函数
+│   ├── symbols.py               # Bitget RWA 品种同步 (68 只)
+│   ├── data.py                  # K 线获取 (Bitget API)
 │   ├── fundamentals.py          # Stage 0: 基本面叙事 (yfinance + Finnhub)
-│   ├── trend_analysis.py        # Stage 1: 技术面 + 鱼身定位
-│   ├── risk_calculator.py       # 风控计算 (ATR-based)
-│   └── batch_scan.py            # 批量扫描 (支持 --with-fund)
+│   ├── trend.py                 # Stage 1: 技术面 + 鱼身定位
+│   ├── risk.py                  # 风控计算 (ATR-based)
+│   └── scanner.py               # 批量扫描 (支持 --with-fund)
 │
 ├── prompts/
 │   ├── swing_analyst.md         # 5 步推理框架 (含决策矩阵 + 7 个 few-shot)
 │   └── output_schema.md         # 报告输出模板
+│
+├── tests/                       # 单元测试 (56 用例)
+│   ├── test_risk_calculator.py
+│   ├── test_trend_analysis.py
+│   ├── test_fundamentals.py
+│   └── test_scanner.py
 │
 └── config/
     ├── bitget_symbols.json      # Bitget 品种缓存 (24h TTL)

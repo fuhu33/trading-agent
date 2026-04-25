@@ -1,11 +1,9 @@
-"""risk_calculator 单元测试"""
+"""risk 模块单元测试"""
 
 import pytest
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from risk_calculator import calculate_risk
+from trading_agent.risk import calculate_risk
+from trading_agent.exceptions import ValidationError
 
 
 # ---------------------------------------------------------------------------
@@ -89,30 +87,30 @@ class TestATR:
 
 
 # ---------------------------------------------------------------------------
-# 参数校验
+# 参数校验 (使用新的 ValidationError)
 # ---------------------------------------------------------------------------
 
 class TestValidation:
     def test_entry_zero(self):
-        with pytest.raises(ValueError, match="入场价"):
+        with pytest.raises(ValidationError, match="入场价"):
             calculate_risk(entry=0, stop=10)
 
     def test_stop_zero(self):
-        with pytest.raises(ValueError, match="止损价"):
+        with pytest.raises(ValidationError, match="止损价"):
             calculate_risk(entry=10, stop=0)
 
     def test_entry_equals_stop(self):
-        with pytest.raises(ValueError, match="不能相同"):
+        with pytest.raises(ValidationError, match="不能相同"):
             calculate_risk(entry=100, stop=100)
 
     def test_account_negative(self):
-        with pytest.raises(ValueError, match="账户资金"):
+        with pytest.raises(ValidationError, match="账户资金"):
             calculate_risk(entry=100, stop=90, account=-1)
 
     def test_risk_pct_too_high(self):
-        with pytest.raises(ValueError, match="风险比例"):
+        with pytest.raises(ValidationError, match="风险比例"):
             calculate_risk(entry=100, stop=90, risk_pct=0.2)
 
     def test_risk_pct_zero(self):
-        with pytest.raises(ValueError, match="风险比例"):
+        with pytest.raises(ValidationError, match="风险比例"):
             calculate_risk(entry=100, stop=90, risk_pct=0)

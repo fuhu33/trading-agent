@@ -1,26 +1,22 @@
-"""
-Bitget 日K数据获取脚本
+"""Bitget 日K数据获取
 
 从 Bitget API 获取指定品种的日K线历史数据 (OHLCV)。
 仅限 Bitget 已上线的 RWA 合约品种。
 
-用法:
-    uv run python scripts/fetch_data.py NVDA            # 获取 NVDA 最近 90 天日K
-    uv run python scripts/fetch_data.py AAPL --days 60  # 获取 AAPL 最近 60 天日K
-    uv run python scripts/fetch_data.py XAU             # 大宗商品同样支持
+用法 (CLI):
+    uv run trading-agent data NVDA            # 获取 NVDA 最近 90 天日K
+    uv run trading-agent data AAPL --days 60  # 获取 AAPL 最近 60 天日K
 """
 
 import argparse
 import json
 import sys
 import time
-import urllib.request
 from datetime import datetime, timezone
-from pathlib import Path
 
-# 导入品种校验
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from sync_bitget_symbols import lookup_symbol
+from .exceptions import DataError, ValidationError
+from .symbols import lookup_symbol
+from .utils import make_request
 
 # ---------------------------------------------------------------------------
 # 常量
@@ -56,12 +52,10 @@ def fetch_candles_page(symbol: str, granularity: str = "1D",
     query = "&".join(f"{k}={v}" for k, v in params.items())
     url = f"{API_BASE}{CANDLES_ENDPOINT}?{query}"
 
-    req = urllib.request.Request(url, headers={"User-Agent": "trading-agent/0.1"})
-    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-        data = json.loads(resp.read())
+    data = make_request(url, timeout=REQUEST_TIMEOUT)
 
     if data.get("code") != "00000":
-        raise RuntimeError(f"API 返回错误: {data.get('msg', 'unknown')}")
+        raise DataError(f"API 返回错误: {data.get('msg', 'unknown')}")
 
     return data.get("data", [])
 
@@ -165,7 +159,7 @@ def build_report(ticker: str, symbol_info: dict, candles: list[dict],
 
 
 # ---------------------------------------------------------------------------
-# 公开接口 (供其他脚本调用)
+# 公开接口 (供其他模块调用)
 # ---------------------------------------------------------------------------
 
 def get_candle_data(ticker: str, days: int = 90) -> dict:
@@ -179,14 +173,15 @@ def get_candle_data(ticker: str, days: int = 90) -> dict:
         包含 status, candles 等字段的报告字典
 
     Raises:
-        ValueError: ticker 不在 Bitget 品种列表中
+        ValidationError: ticker 不在 Bitget 品种列表中
+        DataError: 数据获取失败
     """
     # 品种校验
     symbol_info = lookup_symbol(ticker)
     if symbol_info is None:
-        raise ValueError(
+        raise ValidationError(
             f"品种 '{ticker}' 不在 Bitget RWA 合约列表中，无法交易。"
-            f" 使用 'uv run python scripts/sync_bitget_symbols.py --quiet' 查看可用品种。"
+            f" 使用 'uv run trading-agent sync --quiet' 查看可用品种。"
         )
 
     # 获取数据
@@ -194,7 +189,7 @@ def get_candle_data(ticker: str, days: int = 90) -> dict:
     candles = fetch_all_candles(symbol, days=days)
 
     if not candles:
-        raise RuntimeError(f"品种 '{ticker}' ({symbol}) 未获取到任何 K 线数据。")
+        raise DataError(f"品种 '{ticker}' ({symbol}) 未获取到任何 K 线数据。")
 
     return build_report(ticker, symbol_info, candles, requested_days=days)
 
@@ -218,7 +213,7 @@ def main():
 
     try:
         report = get_candle_data(ticker, days=args.days)
-    except ValueError as e:
+    except (ValidationError, DataError) as e:
         print(json.dumps({"status": "error", "ticker": ticker, "message": str(e)},
                          ensure_ascii=False))
         sys.exit(1)

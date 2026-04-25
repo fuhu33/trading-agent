@@ -17,3 +17,9 @@ config/fundamentals_cache.json
 
 # Generated reports
 reports/
+
+# Debug artifacts (根目录意外产出)
+/*.json
+
+# Pytest
+.pytest_cache/

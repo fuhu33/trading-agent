@@ -1,18 +1,17 @@
-"""
-风控计算脚本
+"""风控计算模块
 
 基于入场价、止损价和账户参数，计算仓位大小、风险金额和盈亏比目标。
 
-用法:
-    uv run python scripts/risk_calculator.py --entry 150 --stop 142
-    uv run python scripts/risk_calculator.py --entry 150 --stop 142 --account 50000 --risk-pct 0.01
-    uv run python scripts/risk_calculator.py --entry 150 --stop 142 --atr 3.5
+用法 (CLI):
+    uv run trading-agent risk --entry 150 --stop 142
+    uv run trading-agent risk --entry 150 --stop 142 --account 50000 --risk-pct 0.01
 """
 
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+
+from .exceptions import ValidationError
 
 
 # ---------------------------------------------------------------------------
@@ -39,19 +38,19 @@ def calculate_risk(
         包含仓位、风险、盈亏比目标的字典
 
     Raises:
-        ValueError: 参数不合法
+        ValidationError: 参数不合法
     """
     # 参数校验
     if entry <= 0:
-        raise ValueError(f"入场价必须 > 0, 当前: {entry}")
+        raise ValidationError(f"入场价必须 > 0, 当前: {entry}")
     if stop <= 0:
-        raise ValueError(f"止损价必须 > 0, 当前: {stop}")
+        raise ValidationError(f"止损价必须 > 0, 当前: {stop}")
     if entry == stop:
-        raise ValueError("入场价与止损价不能相同")
+        raise ValidationError("入场价与止损价不能相同")
     if account <= 0:
-        raise ValueError(f"账户资金必须 > 0, 当前: {account}")
+        raise ValidationError(f"账户资金必须 > 0, 当前: {account}")
     if not (0 < risk_pct <= 0.1):
-        raise ValueError(f"风险比例必须在 (0, 0.1] 之间, 当前: {risk_pct}")
+        raise ValidationError(f"风险比例必须在 (0, 0.1] 之间, 当前: {risk_pct}")
 
     # 方向判断
     direction = "long" if entry > stop else "short"
@@ -140,7 +139,7 @@ def main():
             risk_pct=args.risk_pct,
             atr=args.atr,
         )
-    except ValueError as e:
+    except ValidationError as e:
         print(json.dumps({"status": "error", "message": str(e)},
                          ensure_ascii=False))
         sys.exit(1)

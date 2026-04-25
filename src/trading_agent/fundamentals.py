@@ -1,5 +1,4 @@
-"""
-基本面分析脚本 (Stage 0)
+"""基本面分析模块 (Stage 0)
 
 通过 yfinance + Finnhub 提取 4 个核心信号:
   1. 业绩面: 最近一次财报 EPS/营收超预期幅度
@@ -9,30 +8,33 @@
 
 输出综合的 narrative_score (0-10) 与 thesis (strong/moderate/weak)。
 
-用法:
-    uv run python scripts/fundamentals.py NVDA
-    uv run python scripts/fundamentals.py NVDA --force   # 跳过缓存
+用法 (CLI):
+    uv run trading-agent fund NVDA
+    uv run trading-agent fund NVDA --force   # 跳过缓存
 """
 
 import argparse
 import json
 import os
 import sys
-import urllib.request
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import yfinance as yf
 from dotenv import load_dotenv
 
+from .exceptions import DataError
+from .utils import safe_float, make_request
+
 # 加载 .env (如果存在)
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+load_dotenv(_PROJECT_ROOT / ".env")
 
 # ---------------------------------------------------------------------------
 # 配置
 # ---------------------------------------------------------------------------
 
-CACHE_DIR = Path(__file__).resolve().parent.parent / "config"
+CACHE_DIR = _PROJECT_ROOT / "config"
 CACHE_FILE = CACHE_DIR / "fundamentals_cache.json"
 CACHE_TTL_SECONDS = 6 * 3600  # 6 小时 (基本面变化慢)
 
@@ -41,8 +43,7 @@ FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 EARNINGS_WINDOW_DAYS = 14  # 1-2 周波段分析窗口
 
-# Sector → 代理 ETF 映射 (Bitget 不直接上线 SPDR sector ETF, 通过 yfinance 拉数据)
-# 半导体/科技用更精准的 SMH/XLK, 其他用 SPDR 标准
+# Sector → 代理 ETF 映射
 SECTOR_ETF_MAP = {
     "Technology": "XLK",
     "Healthcare": "XLV",
@@ -65,11 +66,14 @@ INDUSTRY_ETF_OVERRIDE = {
 
 
 # ---------------------------------------------------------------------------
-# 缓存
+# 缓存 (内存优化: 批量模式下避免重复 I/O)
 # ---------------------------------------------------------------------------
 
-def load_cache() -> dict:
-    """加载基本面缓存 (整个文件存所有 ticker)"""
+_CACHE_IN_MEMORY: dict | None = None
+
+
+def _load_cache_file() -> dict:
+    """从文件加载缓存"""
     if not CACHE_FILE.exists():
         return {}
     try:
@@ -79,15 +83,24 @@ def load_cache() -> dict:
         return {}
 
 
-def save_cache(cache: dict) -> None:
+def _save_cache_file(cache: dict) -> None:
+    """保存缓存到文件"""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2, ensure_ascii=False, default=str)
 
 
+def _get_cache() -> dict:
+    """获取内存缓存 (惰性加载)"""
+    global _CACHE_IN_MEMORY
+    if _CACHE_IN_MEMORY is None:
+        _CACHE_IN_MEMORY = _load_cache_file()
+    return _CACHE_IN_MEMORY
+
+
 def get_cached(ticker: str) -> dict | None:
     """获取单个 ticker 的有效缓存"""
-    cache = load_cache()
+    cache = _get_cache()
     entry = cache.get(ticker)
     if not entry:
         return None
@@ -103,33 +116,27 @@ def get_cached(ticker: str) -> dict | None:
 
 
 def set_cached(ticker: str, data: dict) -> None:
-    cache = load_cache()
+    """写入内存缓存 (不立即落盘)"""
+    cache = _get_cache()
     cache[ticker] = {
         "_cached_at": datetime.now(timezone.utc).isoformat(),
         "data": data,
     }
-    save_cache(cache)
+
+
+def flush_cache() -> None:
+    """将内存缓存写入文件 (批量扫描结束后调用)"""
+    global _CACHE_IN_MEMORY
+    if _CACHE_IN_MEMORY is not None:
+        _save_cache_file(_CACHE_IN_MEMORY)
 
 
 # ---------------------------------------------------------------------------
-# yfinance 数据抓取
+# yfinance 数据抓取 (单例化: 一次创建 yf.Ticker)
 # ---------------------------------------------------------------------------
 
-def _safe_float(v) -> float | None:
-    try:
-        if v is None:
-            return None
-        f = float(v)
-        if f != f:  # NaN
-            return None
-        return f
-    except (TypeError, ValueError):
-        return None
-
-
-def fetch_yf_info(ticker: str) -> dict:
-    """获取 yfinance.info, 提取所需字段"""
-    yf_obj = yf.Ticker(ticker)
+def _extract_info(yf_obj: yf.Ticker) -> dict:
+    """从 yf.Ticker 提取基础信息"""
     try:
         info = yf_obj.info or {}
     except Exception as e:
@@ -138,40 +145,35 @@ def fetch_yf_info(ticker: str) -> dict:
     return {
         "sector": info.get("sector"),
         "industry": info.get("industry"),
-        "current_price": _safe_float(info.get("currentPrice") or info.get("regularMarketPrice")),
-        "recommendation_mean": _safe_float(info.get("recommendationMean")),
+        "current_price": safe_float(info.get("currentPrice") or info.get("regularMarketPrice"), default=None),
+        "recommendation_mean": safe_float(info.get("recommendationMean"), default=None),
         "recommendation_key": info.get("recommendationKey"),
-        "target_mean": _safe_float(info.get("targetMeanPrice")),
-        "target_high": _safe_float(info.get("targetHighPrice")),
-        "target_low": _safe_float(info.get("targetLowPrice")),
+        "target_mean": safe_float(info.get("targetMeanPrice"), default=None),
+        "target_high": safe_float(info.get("targetHighPrice"), default=None),
+        "target_low": safe_float(info.get("targetLowPrice"), default=None),
         "num_analysts": info.get("numberOfAnalystOpinions"),
     }
 
 
-def fetch_yf_earnings_history(ticker: str) -> dict | None:
-    """获取最近一次财报的 EPS/营收超预期数据"""
+def _extract_earnings(yf_obj: yf.Ticker) -> dict | None:
+    """从 yf.Ticker 提取最近一次财报 EPS 数据"""
     try:
-        yf_obj = yf.Ticker(ticker)
-        # earnings_history 包含历史 EPS 实际 vs 预期
         hist = yf_obj.earnings_history
         if hist is None or hist.empty:
             return None
 
-        # 最近一行 (按日期降序排列, 取最新有 actual 数据的行)
         hist_with_actual = hist.dropna(subset=["epsActual"]) if "epsActual" in hist.columns else hist
         if hist_with_actual.empty:
             return None
-        latest = hist_with_actual.iloc[-1]  # 最新一期
+        latest = hist_with_actual.iloc[-1]
 
-        eps_actual = _safe_float(latest.get("epsActual"))
-        eps_est = _safe_float(latest.get("epsEstimate"))
+        eps_actual = safe_float(latest.get("epsActual"), default=None)
+        eps_est = safe_float(latest.get("epsEstimate"), default=None)
 
-        # 计算超预期幅度
         surprise_pct = None
         if eps_actual is not None and eps_est is not None and eps_est != 0:
             surprise_pct = round((eps_actual - eps_est) / abs(eps_est) * 100, 2)
 
-        # 报告日 (索引可能是 quarter 字段)
         report_date = None
         if hasattr(latest, "name") and latest.name:
             try:
@@ -189,27 +191,22 @@ def fetch_yf_earnings_history(ticker: str) -> dict | None:
         return None
 
 
-def fetch_yf_next_earnings(ticker: str) -> dict | None:
-    """获取下次财报日"""
+def _extract_next_earnings(yf_obj: yf.Ticker) -> dict | None:
+    """从 yf.Ticker 提取下次财报日"""
     try:
-        yf_obj = yf.Ticker(ticker)
         cal = yf_obj.calendar
         if not cal:
             return None
-        # calendar 在新版 yfinance 中是 dict
         ed = cal.get("Earnings Date") if isinstance(cal, dict) else None
         if not ed:
             return None
-        # ed 可能是 list[date] (区间) 或 single date
         if isinstance(ed, list):
             next_date = ed[0]
         else:
             next_date = ed
 
-        # 转为 datetime
         if hasattr(next_date, "isoformat"):
             date_str = next_date.isoformat()[:10]
-            # 计算 days_until
             today = datetime.now(timezone.utc).date()
             try:
                 target = datetime.fromisoformat(date_str).date()
@@ -237,13 +234,12 @@ def fetch_etf_trend(etf_ticker: str) -> dict | None:
             return None
 
         latest_close = float(hist["Close"].iloc[-1])
-        close_5d_ago = float(hist["Close"].iloc[-6])  # 5 个交易日前
-        close_20d_ago = float(hist["Close"].iloc[-21])  # 20 个交易日前
+        close_5d_ago = float(hist["Close"].iloc[-6])
+        close_20d_ago = float(hist["Close"].iloc[-21])
 
         change_5d = round((latest_close - close_5d_ago) / close_5d_ago * 100, 2)
         change_20d = round((latest_close - close_20d_ago) / close_20d_ago * 100, 2)
 
-        # 趋势判断
         if change_5d > 0 and change_20d > 2:
             trend = "bullish"
         elif change_5d < 0 and change_20d < -2:
@@ -271,18 +267,15 @@ def fetch_finnhub_earnings_calendar(ticker: str) -> dict | None:
         return None
 
     today = datetime.now(timezone.utc).date()
-    end = today + timedelta(days=90)  # 未来 90 天
+    end = today + timedelta(days=90)
     url = (f"{FINNHUB_BASE}/calendar/earnings"
            f"?from={today.isoformat()}&to={end.isoformat()}"
            f"&symbol={ticker}&token={FINNHUB_API_KEY}")
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "trading-agent/0.1"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
+        data = make_request(url, timeout=10)
         events = data.get("earningsCalendar", [])
         if not events:
             return None
-        # 最近一个未来事件
         events.sort(key=lambda x: x.get("date", ""))
         for ev in events:
             try:
@@ -315,7 +308,7 @@ def compute_narrative(earnings: dict | None,
       - 业绩面 (0-3): 财报超预期幅度
       - 行业面 (0-2): sector ETF 趋势
       - 评级面 (0-3): 分析师评级 + 上涨空间
-      - 预期面 (-2~0): 财报临近扣分 (波动风险)
+      - 预期面 (-2~+1): 财报催化剂或扣分
     """
     score = 0
     drivers = []
@@ -353,7 +346,7 @@ def compute_narrative(earnings: dict | None,
 
     # --- 评级面 (0-3) ---
     if analysts:
-        rec = analysts.get("rating_score")  # 1=Strong Buy, 5=Sell
+        rec = analysts.get("rating_score")
         upside = analysts.get("upside_pct")
 
         if rec is not None:
@@ -374,23 +367,18 @@ def compute_narrative(earnings: dict | None,
                 score -= 1
                 concerns.append(f"已超目标价 ({upside:+.1f}%)")
 
-    # --- 预期面: 财报催化剂判定 (不再一刀切扣分) ---
-    # 逻辑: 强叙事 + 财报窗口 = 先手机会; 弱叙事 + 财报窗口 = 回避
-    # 注意: 此时 score 已包含业绩面/行业面/评级面, 用 pre_score 判断叙事强度
-    pre_score = score  # 财报调整前的分数
+    # --- 预期面: 财报催化剂判定 ---
+    pre_score = score
     if next_earnings and next_earnings.get("in_window"):
         days = next_earnings['days_until']
         if pre_score >= 6:
-            # 强叙事 + 财报窗口 = 催化剂机会, 加分
             score += 1
-            drivers.append(f"🚀 财报催化剂: {days}天后发财报, 叙事强 → 先手窗口")
+            drivers.append(f"财报催化剂: {days}天后发财报, 叙事强 -> 先手窗口")
         elif pre_score >= 4:
-            # 中性叙事, 不加不减
-            concerns.append(f"财报 {days} 天后, 叙事中性 → 小仓位试单")
+            concerns.append(f"财报 {days} 天后, 叙事中性 -> 小仓位试单")
         else:
-            # 弱叙事 + 财报 = 双重风险
             score -= 2
-            concerns.append(f"财报 {days} 天后, 叙事弱 → 回避")
+            concerns.append(f"财报 {days} 天后, 叙事弱 -> 回避")
     elif next_earnings and next_earnings.get("days_until") is not None:
         if next_earnings["days_until"] <= 30:
             drivers.append(f"下次财报 {next_earnings['days_until']} 天后")
@@ -455,8 +443,11 @@ def build_fundamentals_report(ticker: str, force_refresh: bool = False) -> dict:
             cached["_cache_hit"] = True
             return cached
 
-    # 1. 抓取基础信息
-    info = fetch_yf_info(ticker)
+    # 统一创建 yf.Ticker (单例化, 避免 3 次实例化)
+    yf_obj = yf.Ticker(ticker)
+
+    # 1. 基础信息
+    info = _extract_info(yf_obj)
     if "error" in info:
         return {
             "status": "error",
@@ -465,10 +456,10 @@ def build_fundamentals_report(ticker: str, force_refresh: bool = False) -> dict:
         }
 
     # 2. 业绩
-    earnings = fetch_yf_earnings_history(ticker)
+    earnings = _extract_earnings(yf_obj)
 
     # 3. 下次财报 (yfinance 优先, Finnhub 兜底)
-    next_earnings = fetch_yf_next_earnings(ticker) or fetch_finnhub_earnings_calendar(ticker)
+    next_earnings = _extract_next_earnings(yf_obj) or fetch_finnhub_earnings_calendar(ticker)
 
     # 4. 行业 ETF (industry 优先于 sector)
     industry = info.get("industry")
@@ -515,7 +506,7 @@ def build_fundamentals_report(ticker: str, force_refresh: bool = False) -> dict:
         "narrative": narrative,
     }
 
-    # 写缓存
+    # 写内存缓存
     set_cached(ticker, report)
     return report
 
@@ -532,6 +523,8 @@ def main():
 
     try:
         report = build_fundamentals_report(args.ticker, force_refresh=args.force)
+        # CLI 模式下立即落盘
+        flush_cache()
     except Exception as e:
         print(json.dumps({"status": "error", "ticker": args.ticker, "message": str(e)},
                          ensure_ascii=False))

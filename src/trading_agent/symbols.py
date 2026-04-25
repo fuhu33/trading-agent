@@ -1,25 +1,21 @@
-"""
-Bitget RWA 品种同步脚本
+"""Bitget RWA 品种同步与查询
 
 从 Bitget 公开 API 获取所有 RWA (美股/大宗商品) 合约品种，
-分类后保存到本地缓存文件。
+分类后保存到本地缓存文件。支持按分组过滤和单品种快速查询。
 
-用法:
-    uv run python scripts/sync_bitget_symbols.py          # 使用缓存 (24h 有效)
-    uv run python scripts/sync_bitget_symbols.py --force   # 强制刷新
-    uv run python scripts/sync_bitget_symbols.py --group stock   # 只显示美股个股
-    uv run python scripts/sync_bitget_symbols.py --group etf     # 只显示 ETF
-    uv run python scripts/sync_bitget_symbols.py --group commodity  # 只显示大宗商品
+用法 (CLI):
+    uv run trading-agent sync          # 使用缓存 (24h 有效)
+    uv run trading-agent sync --force  # 强制刷新
 """
 
 import argparse
 import json
-import os
 import sys
-import time
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .exceptions import DataError
+from .utils import make_request
 
 # ---------------------------------------------------------------------------
 # 分类定义
@@ -44,11 +40,16 @@ COMMODITY_SYMBOLS = {
 
 # 其余 isRwa == YES 的品种默认归为美股个股 (stock)
 
-CACHE_DIR = Path(__file__).resolve().parent.parent / "config"
+# 路径相对于项目根目录
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+CACHE_DIR = _PROJECT_ROOT / "config"
 CACHE_FILE = CACHE_DIR / "bitget_symbols.json"
 CACHE_TTL_SECONDS = 24 * 3600  # 24 小时
 
 API_URL = "https://api.bitget.com/api/v2/mix/market/contracts?productType=USDT-FUTURES"
+
+# 内存索引 (模块级单例, 避免重复线性扫描)
+_SYMBOL_INDEX: dict[str, dict] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -66,15 +67,10 @@ def classify_symbol(base_coin: str) -> str:
 
 def fetch_from_api() -> list[dict]:
     """从 Bitget API 获取并过滤 RWA 品种"""
-    try:
-        req = urllib.request.Request(API_URL, headers={"User-Agent": "trading-agent/0.1"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read())
-    except Exception as e:
-        raise RuntimeError(f"Bitget API 请求失败: {e}")
+    data = make_request(API_URL)
 
     if data.get("code") != "00000":
-        raise RuntimeError(f"Bitget API 返回错误: {data.get('msg')}")
+        raise DataError(f"Bitget API 返回错误: {data.get('msg')}")
 
     rwa_symbols = []
     for contract in data["data"]:
@@ -157,13 +153,27 @@ def get_symbols(force: bool = False) -> dict:
     return save_cache(symbols)
 
 
+def _build_index(symbols: list[dict]) -> dict[str, dict]:
+    """构建 baseCoin -> info 索引"""
+    return {s["baseCoin"].upper(): s for s in symbols}
+
+
 def lookup_symbol(base_coin: str) -> dict | None:
-    """查找单个品种，供其他脚本调用"""
-    report = get_symbols()
-    for s in report["symbols"]:
-        if s["baseCoin"].upper() == base_coin.upper():
-            return s
-    return None
+    """查找单个品种，O(1) 索引查找
+
+    首次调用时从缓存构建索引，后续直接查 dict。
+    """
+    global _SYMBOL_INDEX
+    if _SYMBOL_INDEX is None:
+        report = get_symbols()
+        _SYMBOL_INDEX = _build_index(report["symbols"])
+    return _SYMBOL_INDEX.get(base_coin.upper())
+
+
+def invalidate_index() -> None:
+    """清除内存索引 (force refresh 后需调用)"""
+    global _SYMBOL_INDEX
+    _SYMBOL_INDEX = None
 
 
 # ---------------------------------------------------------------------------
@@ -179,8 +189,10 @@ def main():
     args = parser.parse_args()
 
     try:
+        if args.force:
+            invalidate_index()
         report = get_symbols(force=args.force)
-    except RuntimeError as e:
+    except DataError as e:
         print(json.dumps({"status": "error", "message": str(e)},
                          ensure_ascii=False))
         sys.exit(1)

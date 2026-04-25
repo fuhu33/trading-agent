@@ -1,15 +1,11 @@
-"""
-批量扫描脚本
+"""批量扫描模块
 
 对多个 Bitget RWA 品种批量运行趋势分析，输出汇总表格，筛选 Gate 通过的标的。
 
-用法:
-    uv run python scripts/batch_scan.py AAPL,MSFT,NVDA         # 指定品种
-    uv run python scripts/batch_scan.py --group stock            # 按分组扫描
-    uv run python scripts/batch_scan.py --group etf              # 扫描 ETF
-    uv run python scripts/batch_scan.py --group mega_cap         # 大盘科技股
-    uv run python scripts/batch_scan.py                          # 全部 RWA 品种
-    uv run python scripts/batch_scan.py --group stock --json     # JSON 输出
+用法 (CLI):
+    uv run trading-agent scan AAPL,MSFT,NVDA       # 指定品种
+    uv run trading-agent scan --group mega_cap      # 按分组扫描
+    uv run trading-agent scan --with-fund           # 含基本面
 """
 
 import argparse
@@ -17,12 +13,10 @@ import json
 import sys
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from sync_bitget_symbols import get_symbols
-from trend_analysis import build_trend_report
-from fundamentals import build_fundamentals_report
+from .symbols import get_symbols
+from .trend import build_trend_report
+from .fundamentals import build_fundamentals_report, flush_cache
 
 # ---------------------------------------------------------------------------
 # 预定义分组
@@ -144,6 +138,10 @@ def scan_batch(tickers: list[str], delay: float = 1.5,
         if i < total - 1:
             time.sleep(delay)
 
+    # 批量扫描结束后统一落盘缓存
+    if with_fund:
+        flush_cache()
+
     return results
 
 
@@ -190,7 +188,6 @@ def format_table(results: list[dict], with_fund: bool = False) -> str:
         gate_str = "✅" if r["gate_pass"] else "❌"
         risk_str = ",".join(r["risk_flags"]) if r["risk_flags"] else "-"
 
-        # 鱼身加 ⭐ 标记理想介入
         if r.get("ideal_entry"):
             stage_zh = f"⭐{stage_zh}"
 
@@ -241,9 +238,7 @@ def format_table(results: list[dict], with_fund: bool = False) -> str:
         tickers_str = ", ".join(r["ticker"] for r in passed)
         lines.append(f"**Gate 通过**: {tickers_str}")
 
-        # with_fund 时加推荐列表
         if with_fund:
-            # 三层共振 (无财报压力)
             star_picks = [
                 r for r in passed
                 if r.get("thesis") == "strong"
@@ -259,7 +254,6 @@ def format_table(results: list[dict], with_fund: bool = False) -> str:
                 lines.append("")
                 lines.append(f"**⭐ 三层共振 (基本面强 + 鱼身位置 + 动力强)**: {tk_list}")
 
-            # 财报催化剂先手
             catalyst_picks = [
                 r for r in passed
                 if r.get("earnings_catalyst")
@@ -316,7 +310,6 @@ def main():
                         help="对 Gate 通过品种额外拉取基本面 (慢但更准)")
     args = parser.parse_args()
 
-    # 解析品种列表
     tickers = resolve_tickers(args.tickers, args.group)
 
     if not tickers:
@@ -327,10 +320,8 @@ def main():
     print(f"即将扫描 {len(tickers)} 个品种 (delay={args.delay}s) ...",
           file=sys.stderr, flush=True)
 
-    # 执行扫描
     results = scan_batch(tickers, delay=args.delay, with_fund=args.with_fund)
 
-    # 输出
     if args.json:
         report = build_json_report(results)
         print(json.dumps(report, indent=2, ensure_ascii=False))

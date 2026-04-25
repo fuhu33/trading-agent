@@ -18,6 +18,9 @@ swing trend NVDA    — 仅技术面 + 鱼身定位 (展示指标)
 swing data NVDA     — 仅获取原始行情数据
 swing risk --entry 150 --stop 142  — 仅风控计算
 swing sync          — 同步 Bitget 品种列表
+swing report NVDA              — 生成 HTML K线图报告
+swing report MSFT,META,AAPL    — 批量生成 + 索引页
+swing report NVDA --serve      — 本地服务器预览
 ```
 
 ### 批量扫描
@@ -43,7 +46,7 @@ Stage 0: 基本面叙事审查 (fundamentals.py)
         ↓
 [决策门 1] thesis=weak 且 score<4 → 直接拦截, 不做
         ↓
-Stage 1: 技术 Gate + 鱼身定位 (trend_analysis.py)
+Stage 1: 技术 Gate + 鱼身定位 (trend.py)
   └── 趋势成立? (Gate)
   └── 鱼身位置? (鱼头/鱼身/鱼尾)
         ↓
@@ -71,25 +74,41 @@ Stage 3: 风控计算 + 输出报告 (output_schema.md)
 
 1. **`swing fund <ticker>`**: 运行 Stage 0, 仅展示基本面叙事报告
    ```bash
-   uv run python scripts/fundamentals.py <TICKER>
+   uv run trading-agent fund <TICKER>
    ```
 2. **`swing trend <ticker>`**: 运行 Stage 1, 展示技术指标 + 鱼身定位
+   ```bash
+   uv run trading-agent trend <TICKER>
+   ```
 3. **`swing data <ticker>`**: 仅获取原始 OHLCV
+   ```bash
+   uv run trading-agent data <TICKER>
+   ```
 4. **`swing risk --entry X --stop Y`**: 仅风控
+   ```bash
+   uv run trading-agent risk --entry <ENTRY> --stop <STOP> --atr <ATR>
+   ```
 5. **`swing sync [--force]`**: 同步品种
+   ```bash
+   uv run trading-agent sync [--force]
+   ```
 6. **`swing scan [tickers] [--group G] [--with-fund]`**: 批量扫描
    ```bash
-   uv run python scripts/batch_scan.py [TICKERS] [--group GROUP] [--delay 1.5] [--with-fund]
+   uv run trading-agent scan [TICKERS] [--group GROUP] [--delay 1.5] [--with-fund]
    ```
    仅对 Gate 通过的标的进行 Stage 2 深度推理。
-7. **`swing <ticker>`** (无子命令): 执行完整双驱动流程
+7. **`swing report <tickers> [--serve]`**: 生成 HTML K线图交互报告
+   ```bash
+   uv run trading-agent report <TICKERS> [--with-fund] [--serve] [--no-open]
+   ```
+8. **`swing <ticker>`** (无子命令): 执行完整双驱动流程
 
 ### 完整双驱动流程
 
 **Step 1: 基本面叙事 (Stage 0)**
 
 ```bash
-uv run python scripts/fundamentals.py <TICKER>
+uv run trading-agent fund <TICKER>
 ```
 
 读取 `narrative.score`、`narrative.thesis` 与 `narrative.earnings_catalyst`:
@@ -102,7 +121,7 @@ uv run python scripts/fundamentals.py <TICKER>
 **Step 2: 技术面 + 鱼身 (Stage 1)**
 
 ```bash
-uv run python scripts/trend_analysis.py <TICKER>
+uv run trading-agent trend <TICKER>
 ```
 
 新输出包含 `fish_body` 字段 (stage / trend_age_days / cumulative_pct / deviation_pct / ideal_entry)。
@@ -129,7 +148,7 @@ uv run python scripts/trend_analysis.py <TICKER>
 **Step 5: 风控计算 (如建议入场)**
 
 ```bash
-uv run python scripts/risk_calculator.py --entry <ENTRY> --stop <STOP> --atr <ATR>
+uv run trading-agent risk --entry <ENTRY> --stop <STOP> --atr <ATR>
 ```
 
 **Step 6: 按 `output_schema.md` 完整模板输出**
@@ -139,24 +158,34 @@ uv run python scripts/risk_calculator.py --entry <ENTRY> --stop <STOP> --atr <AT
 ## 项目结构
 
 ```
-scripts/
-├── sync_bitget_symbols.py   # 品种同步 (Bitget API)
-├── fetch_data.py            # K 线获取 (Bitget API)
-├── trend_analysis.py        # 技术面 + 鱼身定位
-├── fundamentals.py          # 基本面叙事 (yfinance + Finnhub)
-├── risk_calculator.py       # 风控计算
-└── batch_scan.py            # 批量扫描
+src/trading_agent/
+├── __init__.py         # 包入口
+├── cli.py              # 统一 CLI 入口
+├── exceptions.py       # 异常层级
+├── utils.py            # 共用工具函数
+├── symbols.py          # 品种同步 (Bitget API)
+├── data.py             # K 线获取 (Bitget API)
+├── trend.py            # 技术面 + 鱼身定位
+├── fundamentals.py     # 基本面叙事 (yfinance + Finnhub)
+├── risk.py             # 风控计算
+└── scanner.py          # 批量扫描
 
 prompts/
-├── swing_analyst.md         # 5 步推理框架
-└── output_schema.md         # 报告模板
+├── swing_analyst.md    # 5 步推理框架
+└── output_schema.md    # 报告模板
 
 config/
 ├── bitget_symbols.json      # 品种缓存 (24h TTL)
 └── fundamentals_cache.json  # 基本面缓存 (6h TTL)
 
+tests/
+├── test_risk_calculator.py  # 风控计算测试
+├── test_trend_analysis.py   # 趋势分析测试
+├── test_fundamentals.py     # 基本面评分测试
+└── test_scanner.py          # 扫描模块测试
+
 .env                          # FINNHUB_API_KEY (gitignored)
 .env.example                  # 模板
 ```
 
-所有脚本通过 `uv run python scripts/xxx.py` 执行。
+所有命令通过 `uv run trading-agent <command>` 执行。

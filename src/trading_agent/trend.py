@@ -1,26 +1,24 @@
-"""
-趋势分析脚本
+"""趋势分析模块
 
 基于 Bitget 日K数据计算技术指标，判断趋势方向/强度，输出结构化 TrendReport。
 适配 1-2 周波段持仓周期，仅依赖 90 天日K数据。
 
-用法:
-    uv run python scripts/trend_analysis.py NVDA   # 完整趋势分析
-    uv run python scripts/trend_analysis.py XAU    # 大宗商品同样支持
+用法 (CLI):
+    uv run trading-agent trend NVDA   # 完整趋势分析
+    uv run trading-agent trend XAU    # 大宗商品同样支持
 """
 
 import argparse
 import json
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-# 导入数据获取
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fetch_data import get_candle_data
+from .data import get_candle_data
+from .exceptions import ValidationError
+from .utils import safe_np_float
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +112,7 @@ def determine_trend(df: pd.DataFrame) -> dict:
     close = float(df["close"].iloc[-1])
     ema20 = float(df["ema20"].iloc[-1])
     ema50 = float(df["ema50"].iloc[-1])
-    adx = float(df["adx"].iloc[-1]) if not np.isnan(df["adx"].iloc[-1]) else 0.0
+    adx = safe_np_float(df["adx"].iloc[-1])
 
     # --- 方向: 价格 + EMA 排列一致才确认 ---
     if ema20 > ema50 and close > ema20:
@@ -175,16 +173,14 @@ def assess_continuation(df: pd.DataFrame, trend_direction: str) -> dict:
     因子 2: 趋势强化 (ADX 是否上升)
     因子 3: 量能确认 (相对成交量)
     """
-    _safe = lambda v: 0.0 if np.isnan(v) else float(v)
-
     latest = df.iloc[-1]
     prev = df.iloc[-2] if len(df) >= 2 else latest
 
-    macd_hist = _safe(latest["macd_hist"])
-    prev_hist = _safe(prev["macd_hist"])
-    adx = _safe(latest["adx"])
-    prev_adx = _safe(df["adx"].iloc[-4]) if len(df) >= 4 else adx
-    rsi = _safe(latest["rsi"])
+    macd_hist = safe_np_float(latest["macd_hist"])
+    prev_hist = safe_np_float(prev["macd_hist"])
+    adx = safe_np_float(latest["adx"])
+    prev_adx = safe_np_float(df["adx"].iloc[-4]) if len(df) >= 4 else adx
+    rsi = safe_np_float(latest["rsi"])
 
     vol_sma20 = float(df["volume"].rolling(20).mean().iloc[-1] or 0)
     volume_ratio = round(float(latest["volume"]) / vol_sma20, 2) if vol_sma20 > 0 else 0.0
@@ -266,7 +262,6 @@ def locate_fish_body(df: pd.DataFrame, direction: str) -> dict:
     ema20 = float(df["ema20"].iloc[-1])
 
     # --- 1. 找趋势启动点 (最近一次 EMA20 穿越 EMA50) ---
-    # 遍历从最近往前找最后一次 cross
     ema20_series = df["ema20"]
     ema50_series = df["ema50"]
     diff = ema20_series - ema50_series
@@ -298,7 +293,6 @@ def locate_fish_body(df: pd.DataFrame, direction: str) -> dict:
     else:
         # 整个数据区间都是同一方向 → 趋势已超过数据回看窗口
         trend_age = len(df)
-        # 累计变化用最早的可用数据计算
         first_valid = df["close"].iloc[0]
         if first_valid > 0:
             cumulative_pct = round((close - float(first_valid)) / float(first_valid) * 100, 2)
@@ -352,7 +346,7 @@ def find_levels(df: pd.DataFrame) -> dict:
     recent_20 = df.tail(20)
 
     close = float(latest["close"])
-    atr = float(latest["atr"]) if not np.isnan(latest["atr"]) else 0.0
+    atr = safe_np_float(latest["atr"])
 
     return {
         "ema20": round(float(latest["ema20"]), 2),
@@ -392,7 +386,7 @@ def compute_indicators(candles: list[dict]) -> pd.DataFrame:
 
 
 def build_trend_report(ticker: str, days: int = 90) -> dict:
-    """完整趋势分析，供外部脚本调用
+    """完整趋势分析，供外部模块调用
 
     Args:
         ticker: 品种代码 (如 NVDA, AAPL, XAU)
@@ -402,14 +396,14 @@ def build_trend_report(ticker: str, days: int = 90) -> dict:
         完整 TrendReport 字典
 
     Raises:
-        ValueError: ticker 不在 Bitget 品种列表中
+        ValidationError: ticker 不在 Bitget 品种列表中或数据不足
     """
     # 获取数据
     data_report = get_candle_data(ticker, days=days)
     candles = data_report["candles"]
 
     if len(candles) < 50:
-        raise ValueError(
+        raise ValidationError(
             f"数据不足: {ticker} 仅获取到 {len(candles)} 根 K 线, "
             f"技术指标至少需要 50 根 (EMA50/ADX/MACD 依赖足够的历史数据)。"
         )
@@ -417,7 +411,6 @@ def build_trend_report(ticker: str, days: int = 90) -> dict:
     # 计算指标
     df = compute_indicators(candles)
 
-    _safe = lambda v: 0.0 if np.isnan(v) else float(v)
     latest = df.iloc[-1]
     prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else float(latest["close"])
     close = float(latest["close"])
@@ -447,8 +440,8 @@ def build_trend_report(ticker: str, days: int = 90) -> dict:
         "levels": levels,
         "gate": gate,
         "raw": {
-            "rsi": round(_safe(latest["rsi"]), 2),
-            "macd_hist": round(_safe(latest["macd_hist"]), 4),
+            "rsi": round(safe_np_float(latest["rsi"]), 2),
+            "macd_hist": round(safe_np_float(latest["macd_hist"]), 4),
             "volume_ratio": continuation["volume_ratio"],
         },
     }
@@ -471,7 +464,7 @@ def main():
 
     try:
         report = build_trend_report(ticker, days=args.days)
-    except ValueError as e:
+    except (ValidationError,) as e:
         print(json.dumps({"status": "error", "ticker": ticker, "message": str(e)},
                          ensure_ascii=False))
         sys.exit(1)
