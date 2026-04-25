@@ -1,0 +1,23 @@
+[project]
+name = "trading-agent"
+version = "0.1.0"
+description = "AI-powered swing trading analysis workflow for Bitget RWA contracts"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "yfinance>=0.2.40",
+    "python-dotenv>=1.0",
+]
+
+# pandas-ta 不使用: 依赖 numba/llvmlite, Python 3.14 构建失败
+# EMA/RSI/MACD/ADX/ATR 用 pandas 原生计算即可, 代码量很少
+#
+# yfinance: Stage 0 基本面数据源 (财报/评级/sector)
+# python-dotenv: 加载 .env 中的 FINNHUB_API_KEY (财报日历补充)
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.9",
+]

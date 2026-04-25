@@ -1,0 +1,557 @@
+{
+  "status": "success",
+  "source": "bitget_api",
+  "synced_at": "2026-04-25T05:34:55.739838+00:00",
+  "total": 68,
+  "groups": {
+    "stock": 50,
+    "etf": 12,
+    "commodity": 6
+  },
+  "symbols": [
+    {
+      "baseCoin": "COPPER",
+      "symbol": "COPPERUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "commodity",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "NATGAS",
+      "symbol": "NATGASUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "commodity",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "XAG",
+      "symbol": "XAGUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "commodity",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "XAU",
+      "symbol": "XAUUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "commodity",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "XPD",
+      "symbol": "XPDUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "commodity",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "XPT",
+      "symbol": "XPTUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "commodity",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "EWH",
+      "symbol": "EWHUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "EWJ",
+      "symbol": "EWJUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "EWT",
+      "symbol": "EWTUSDT",
+      "maxLever": 25,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "EWY",
+      "symbol": "EWYUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "INDA",
+      "symbol": "INDAUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "KWEB",
+      "symbol": "KWEBUSDT",
+      "maxLever": 25,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "QQQ",
+      "symbol": "QQQUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "SOXL",
+      "symbol": "SOXLUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "SOXS",
+      "symbol": "SOXSUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "SPY",
+      "symbol": "SPYUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "SQQQ",
+      "symbol": "SQQQUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "TQQQ",
+      "symbol": "TQQQUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "etf",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "AAOI",
+      "symbol": "AAOIUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "AAPL",
+      "symbol": "AAPLUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "AMAT",
+      "symbol": "AMATUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "AMD",
+      "symbol": "AMDUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "AMZN",
+      "symbol": "AMZNUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "APP",
+      "symbol": "APPUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "ARM",
+      "symbol": "ARMUSDT",
+      "maxLever": 10,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "ASML",
+      "symbol": "ASMLUSDT",
+      "maxLever": 10,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "AVGO",
+      "symbol": "AVGOUSDT",
+      "maxLever": 25,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "BA",
+      "symbol": "BAUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "BABA",
+      "symbol": "BABAUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "BE",
+      "symbol": "BEUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "BZ",
+      "symbol": "BZUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "COHR",
+      "symbol": "COHRUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "COIN",
+      "symbol": "COINUSDT",
+      "maxLever": 25,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "COP",
+      "symbol": "COPUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "COST",
+      "symbol": "COSTUSDT",
+      "maxLever": 25,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "CRCL",
+      "symbol": "CRCLUSDT",
+      "maxLever": 25,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "FLY",
+      "symbol": "FLYUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "FUTU",
+      "symbol": "FUTUUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "GE",
+      "symbol": "GEUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "GME",
+      "symbol": "GMEUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "GOOGL",
+      "symbol": "GOOGLUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "HOOD",
+      "symbol": "HOODUSDT",
+      "maxLever": 25,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "INTC",
+      "symbol": "INTCUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "IONQ",
+      "symbol": "IONQUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "JD",
+      "symbol": "JDUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "LITE",
+      "symbol": "LITEUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "LLY",
+      "symbol": "LLYUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "MCD",
+      "symbol": "MCDUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "META",
+      "symbol": "METAUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "MRVL",
+      "symbol": "MRVLUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "MSFT",
+      "symbol": "MSFTUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "MSTR",
+      "symbol": "MSTRUSDT",
+      "maxLever": 25,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "MU",
+      "symbol": "MUUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "NBIS",
+      "symbol": "NBISUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "NFLX",
+      "symbol": "NFLXUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "NVDA",
+      "symbol": "NVDAUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "ORCL",
+      "symbol": "ORCLUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "OXY",
+      "symbol": "OXYUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "PLTR",
+      "symbol": "PLTRUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "RDDT",
+      "symbol": "RDDTUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "RKLB",
+      "symbol": "RKLBUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "SNDK",
+      "symbol": "SNDKUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "STXSTOCK",
+      "symbol": "STXSTOCKUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "TSLA",
+      "symbol": "TSLAUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "TSM",
+      "symbol": "TSMUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "UNH",
+      "symbol": "UNHUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "WMT",
+      "symbol": "WMTUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "XOM",
+      "symbol": "XOMUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    }
+  ]
+}
