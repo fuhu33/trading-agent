@@ -94,6 +94,17 @@ def calculate_risk(
         },
     }
 
+    # 仓位集中度警告
+    warnings = []
+    if position_pct > 100:
+        leverage = round(position_value / account, 1)
+        warnings.append(
+            f"仓位市值 ${position_value:.0f} 超过账户资金 ({leverage}x 杠杆), "
+            f"请确认合约杠杆设置"
+        )
+    if warnings:
+        result["warnings"] = warnings
+
     if atr is not None:
         result["atr"] = round(atr, 2)
         result["stop_atr_multiple"] = round(risk_per_share / atr, 2) if atr > 0 else None

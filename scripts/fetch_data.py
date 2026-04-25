@@ -128,7 +128,8 @@ def fetch_all_candles(symbol: str, days: int = 90) -> list[dict]:
     return result
 
 
-def build_report(ticker: str, symbol_info: dict, candles: list[dict]) -> dict:
+def build_report(ticker: str, symbol_info: dict, candles: list[dict],
+                 requested_days: int = 0) -> dict:
     """构建输出报告"""
     report = {
         "status": "success",
@@ -137,6 +138,8 @@ def build_report(ticker: str, symbol_info: dict, candles: list[dict]) -> dict:
         "group": symbol_info["group"],
         "source": "bitget",
         "data_points": len(candles),
+        "requested_days": requested_days,
+        "partial": bool(requested_days and len(candles) < requested_days),
     }
 
     if candles:
@@ -193,7 +196,7 @@ def get_candle_data(ticker: str, days: int = 90) -> dict:
     if not candles:
         raise RuntimeError(f"品种 '{ticker}' ({symbol}) 未获取到任何 K 线数据。")
 
-    return build_report(ticker, symbol_info, candles)
+    return build_report(ticker, symbol_info, candles, requested_days=days)
 
 
 # ---------------------------------------------------------------------------

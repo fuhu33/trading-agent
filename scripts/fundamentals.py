@@ -374,10 +374,23 @@ def compute_narrative(earnings: dict | None,
                 score -= 1
                 concerns.append(f"已超目标价 ({upside:+.1f}%)")
 
-    # --- 预期面 (-2~0) ---
+    # --- 预期面: 财报催化剂判定 (不再一刀切扣分) ---
+    # 逻辑: 强叙事 + 财报窗口 = 先手机会; 弱叙事 + 财报窗口 = 回避
+    # 注意: 此时 score 已包含业绩面/行业面/评级面, 用 pre_score 判断叙事强度
+    pre_score = score  # 财报调整前的分数
     if next_earnings and next_earnings.get("in_window"):
-        score -= 2
-        concerns.append(f"财报将在 {next_earnings['days_until']} 天后公布 (波动风险)")
+        days = next_earnings['days_until']
+        if pre_score >= 6:
+            # 强叙事 + 财报窗口 = 催化剂机会, 加分
+            score += 1
+            drivers.append(f"🚀 财报催化剂: {days}天后发财报, 叙事强 → 先手窗口")
+        elif pre_score >= 4:
+            # 中性叙事, 不加不减
+            concerns.append(f"财报 {days} 天后, 叙事中性 → 小仓位试单")
+        else:
+            # 弱叙事 + 财报 = 双重风险
+            score -= 2
+            concerns.append(f"财报 {days} 天后, 叙事弱 → 回避")
     elif next_earnings and next_earnings.get("days_until") is not None:
         if next_earnings["days_until"] <= 30:
             drivers.append(f"下次财报 {next_earnings['days_until']} 天后")
@@ -393,9 +406,17 @@ def compute_narrative(earnings: dict | None,
     else:
         thesis = "weak"
 
+    # 财报催化剂标记
+    earnings_catalyst = (
+        next_earnings is not None
+        and next_earnings.get("in_window", False)
+        and pre_score >= 6
+    )
+
     return {
         "score": score,
         "thesis": thesis,
+        "earnings_catalyst": earnings_catalyst,
         "drivers": drivers,
         "concerns": concerns,
     }

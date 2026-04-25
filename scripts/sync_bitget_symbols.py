@@ -71,12 +71,10 @@ def fetch_from_api() -> list[dict]:
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
     except Exception as e:
-        print(json.dumps({"status": "error", "message": f"API 请求失败: {e}"}))
-        sys.exit(1)
+        raise RuntimeError(f"Bitget API 请求失败: {e}")
 
     if data.get("code") != "00000":
-        print(json.dumps({"status": "error", "message": f"API 返回错误: {data.get('msg')}"}))
-        sys.exit(1)
+        raise RuntimeError(f"Bitget API 返回错误: {data.get('msg')}")
 
     rwa_symbols = []
     for contract in data["data"]:
@@ -180,7 +178,12 @@ def main():
     parser.add_argument("--quiet", action="store_true", help="仅输出 baseCoin 列表")
     args = parser.parse_args()
 
-    report = get_symbols(force=args.force)
+    try:
+        report = get_symbols(force=args.force)
+    except RuntimeError as e:
+        print(json.dumps({"status": "error", "message": str(e)},
+                         ensure_ascii=False))
+        sys.exit(1)
 
     # 按分组过滤
     if args.group != "all":

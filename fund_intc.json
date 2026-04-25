@@ -1,0 +1,44 @@
+{
+  "status": "success",
+  "ticker": "INTC",
+  "generated_at": "2026-04-25T09:38:05.705493+00:00",
+  "earnings": {
+    "last_report_date": "2026-03-31",
+    "eps_actual": 0.29,
+    "eps_estimate": 0.01265,
+    "eps_surprise_pct": 2192.49
+  },
+  "next_earnings": {
+    "date": "2026-07-24",
+    "days_until": 90,
+    "in_window": false
+  },
+  "sector": {
+    "sector": "Technology",
+    "industry": "Semiconductors",
+    "etf": "SMH",
+    "change_5d": 9.11,
+    "change_20d": 32.98,
+    "trend": "bullish"
+  },
+  "analysts": {
+    "rating_score": 2.80851,
+    "rating": "Hold",
+    "target_mean": 55.33049,
+    "target_high": 95.0,
+    "current_price": 82.54,
+    "upside_pct": -32.97,
+    "num_analysts": 41
+  },
+  "narrative": {
+    "score": 4,
+    "thesis": "moderate",
+    "drivers": [
+      "EPS ��Ԥ�� +2192.5% (ǿ��)",
+      "��ҵ ETF SMH ��ͷ (20d +33.0%)"
+    ],
+    "concerns": [
+      "�ѳ�Ŀ��� (-33.0%)"
+    ]
+  }
+}

@@ -22,9 +22,11 @@
    - `Buy/Strong Buy + upside > 10%`: 机构看多，目标价仍有空间 ✅
    - `Hold + upside < 5%`: 机构观望，已充分定价
    - `Sell + upside < 0`: 机构看空 ⚠️
-4. **事件风险**: 检查 `next_earnings.in_window`
-   - `true` (财报 14 天内): 波段持仓将跨越财报日，风险骤增 ⚠️
-   - `false`: 持仓窗口干净
+4. **事件风险 → 财报催化剂判定**: 检查 `next_earnings.in_window`
+   - `true` + 叙事强 (`score >= 6`): **财报催化剂机会** 🚀 — 基本面分析的价值正是预判财报方向，强叙事 + 财报前 = 最佳先手窗口
+   - `true` + 叙事中 (`score 4-5`): 中性 — 可以小仓位试单，不加分不扣分
+   - `true` + 叙事弱 (`score < 4`): 回避 ⚠️ — 叙事不支持 + 事件风险 = 双重不利
+   - `false`: 持仓窗口干净，按正常逻辑
 
 **综合**: `narrative.score` (0-10) + `narrative.thesis` (strong/moderate/weak)
 
@@ -107,10 +109,13 @@
 
 #### 调整因子 (在仓位倍数基础上修正)
 
-- ⚠️ `next_earnings.in_window == true` (财报 14 天内): 仓位 ×0.5 或推迟
+- 🚀 `in_window == true` + `narrative.score >= 6` (财报催化剂): 仓位 **不打折**, 视为利好窗口; 止损设在财报前低点下方
+- ⚠️ `in_window == true` + `narrative.score < 4` (弱叙事 + 财报): 仓位 ×0.3 或直接回避
+- ➡️ `in_window == true` + `narrative.score 4-5` (中性叙事 + 财报): 仓位 ×0.7
 - ⚠️ `risk_flags` 含 `rsi_overbought` 且鱼尾: 仓位 ×0.7
 - ⚠️ `analysts.upside_pct < 0` (已超目标价): 仓位 ×0.7
 - ✅ 三层共振 (基本面 strong + 鱼身/鱼头 + 动力 strong + ideal_entry=true): 不需折扣
+- ✅ 财报催化共振 (叙事 strong + 鱼头/鱼身 + in_window): 不需折扣, 这是系统设计的核心场景
 
 **输出格式**:
 ```
@@ -134,7 +139,9 @@
    - 2R / 3R 风险报酬目标
 3. **仓位**: 单笔风险 ≤ 账户 2%
 4. **盈亏比**: 必须 ≥ 2:1
-5. **持仓周期**: 1-2 周, 若财报临近需缩短
+5. **持仓周期**: 1-2 周
+   - 财报催化剂仓位: 持有过财报, 财报后第一根 K 线评估是否兑现
+   - 非催化剂仓位: 若意外跨越财报, 财报前一天评估是否减仓
 
 调用 `risk_calculator.py` 输出具体数字。
 
@@ -215,7 +222,26 @@
 - **最终风险**: 单笔 0.56% 资金
 - **关键**: 紧止损 (1.5 ATR), 出现衰竭信号立即出, 不恋战
 
-#### 示例 5: 不做 (基本面 weak)
+#### 示例 5: 财报催化剂先手 (1.5×, 鱼头 + 强叙事 + in_window)
+
+**数据**:
+```json
+{
+  "narrative": {"score": 7, "thesis": "strong"},
+  "trend": {"direction": "bullish", "strength": "strong", "adx": 26},
+  "fish_body": {"stage": "early", "trend_age_days": 6, "cumulative_pct": 5, "deviation_pct": 2, "ideal_entry": true},
+  "continuation": {"verdict": "moderate", "volume_ratio": 1.1},
+  "next_earnings": {"in_window": true, "days_until": 5}
+}
+```
+
+**推理**:
+- **入场决定**: ✅ 做 (叙事 strong + Gate PASS + **财报催化剂**)
+- **仓位倍数**: **1.5×** (鱼头 + ideal_entry + 财报催化共振, 不打折)
+- **最终风险**: 单笔 3% 资金
+- **关键**: 基本面分析的核心价值就是预判财报方向。叙事 7/10 (EPS 历史强超预期 + 行业共振) + 鱼头位置 = 财报前最佳先手窗口。止损设在近期低点下方, 财报后第一根 K 线评估兑现情况
+
+#### 示例 5b: 不做 (基本面 weak)
 
 `narrative.thesis == "weak"`, `score == 3` → Step 0 拦截。
 

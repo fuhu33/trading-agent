@@ -144,10 +144,10 @@ def determine_trend(df: pd.DataFrame) -> dict:
 # ---------------------------------------------------------------------------
 
 def evaluate_gate(trend: dict) -> dict:
-    """Gate: ADX >= 20 且 direction != neutral"""
+    """Gate: ADX >= 20 且 direction == bullish (系统仅做多)"""
     adx = trend["adx"]
     direction = trend["direction"]
-    passed = bool(adx >= 20 and direction != "neutral")
+    passed = bool(adx >= 20 and direction == "bullish")
 
     if passed:
         reason = f"ADX={adx} >= 20, direction={direction}"
@@ -157,6 +157,8 @@ def evaluate_gate(trend: dict) -> dict:
             reasons.append(f"ADX={adx} < 20")
         if direction == "neutral":
             reasons.append("direction=neutral")
+        if direction == "bearish":
+            reasons.append("direction=bearish (仅做多)")
         reason = ", ".join(reasons)
 
     return {"pass": passed, "reason": reason}
@@ -405,6 +407,12 @@ def build_trend_report(ticker: str, days: int = 90) -> dict:
     # 获取数据
     data_report = get_candle_data(ticker, days=days)
     candles = data_report["candles"]
+
+    if len(candles) < 50:
+        raise ValueError(
+            f"数据不足: {ticker} 仅获取到 {len(candles)} 根 K 线, "
+            f"技术指标至少需要 50 根 (EMA50/ADX/MACD 依赖足够的历史数据)。"
+        )
 
     # 计算指标
     df = compute_indicators(candles)

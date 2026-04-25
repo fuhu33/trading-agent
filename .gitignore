@@ -14,3 +14,6 @@ wheels/
 
 # Fundamentals cache (会过期，无需提交)
 config/fundamentals_cache.json
+
+# Generated reports
+reports/

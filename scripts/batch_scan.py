@@ -107,6 +107,7 @@ def scan_single(ticker: str, with_fund: bool = False) -> dict:
                     e_ = fund.get("next_earnings") or {}
                     result["narrative_score"] = n.get("score")
                     result["thesis"] = n.get("thesis")
+                    result["earnings_catalyst"] = n.get("earnings_catalyst", False)
                     result["upside_pct"] = a.get("upside_pct")
                     result["sector_trend"] = s.get("trend")
                     result["earnings_in_window"] = e_.get("in_window", False)
@@ -177,8 +178,10 @@ def format_table(results: list[dict], with_fund: bool = False) -> str:
     for r in results:
         if r["status"] == "error":
             errors.append(r)
-            extra_cols = " | - | - | - | - |" if with_fund else " | - | - | - |"
-            lines.append(f"| {r['ticker']} | - | - | ERROR | - | - | - | - {extra_cols}")
+            if with_fund:
+                lines.append(f"| {r['ticker']} | - | - | ERROR | - | - | - | - | - | - | - | - | - | - |")
+            else:
+                lines.append(f"| {r['ticker']} | - | - | ERROR | - | - | - | - | - | - | - | - |")
             continue
 
         direction_zh = DIRECTION_MAP.get(r["direction"], r["direction"])
@@ -210,11 +213,14 @@ def format_table(results: list[dict], with_fund: bool = False) -> str:
             score_str = f"{thesis_zh}({score})" if score is not None else "-"
             upside = r.get("upside_pct")
             upside_str = f"{upside:+.1f}%" if upside is not None else "-"
-            earnings_str = (
-                f"⚠️{r.get('days_to_earnings')}d"
-                if r.get("earnings_in_window")
-                else (f"{r.get('days_to_earnings')}d" if r.get("days_to_earnings") else "-")
-            )
+            if r.get("earnings_catalyst"):
+                earnings_str = f"🚀{r.get('days_to_earnings')}d"
+            elif r.get("earnings_in_window"):
+                earnings_str = f"⚠️{r.get('days_to_earnings')}d"
+            elif r.get("days_to_earnings"):
+                earnings_str = f"{r.get('days_to_earnings')}d"
+            else:
+                earnings_str = "-"
             line = base + f" | {score_str} | {upside_str} | {earnings_str} | {gate_str} |"
         else:
             line = base + f" | {risk_str} | {gate_str} |"
@@ -235,8 +241,9 @@ def format_table(results: list[dict], with_fund: bool = False) -> str:
         tickers_str = ", ".join(r["ticker"] for r in passed)
         lines.append(f"**Gate 通过**: {tickers_str}")
 
-        # with_fund 时加一个推荐列表: 三层共振的最强信号
+        # with_fund 时加推荐列表
         if with_fund:
+            # 三层共振 (无财报压力)
             star_picks = [
                 r for r in passed
                 if r.get("thesis") == "strong"
@@ -246,11 +253,25 @@ def format_table(results: list[dict], with_fund: bool = False) -> str:
             ]
             if star_picks:
                 tk_list = ", ".join(
-                    f"{r['ticker']}(叙事{r.get('narrative_score')}/10, 鱼身{STAGE_MAP.get(r['stage'])})"
+                    f"{r['ticker']}(叙事{r.get('narrative_score')}/10, {STAGE_MAP.get(r['stage'])})"
                     for r in star_picks
                 )
                 lines.append("")
                 lines.append(f"**⭐ 三层共振 (基本面强 + 鱼身位置 + 动力强)**: {tk_list}")
+
+            # 财报催化剂先手
+            catalyst_picks = [
+                r for r in passed
+                if r.get("earnings_catalyst")
+                and r.get("stage") in ("early", "mid")
+            ]
+            if catalyst_picks:
+                tk_list = ", ".join(
+                    f"{r['ticker']}(叙事{r.get('narrative_score')}/10, {STAGE_MAP.get(r['stage'])}, {r.get('days_to_earnings')}天后财报)"
+                    for r in catalyst_picks
+                )
+                lines.append("")
+                lines.append(f"**🚀 财报催化剂先手 (强叙事 + 好位置 + 财报窗口)**: {tk_list}")
 
     return "\n".join(lines)
 
