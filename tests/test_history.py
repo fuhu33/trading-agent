@@ -41,7 +41,6 @@ def test_append_and_read_snapshot():
     assert saved["ticker"] == "NVDA"
     assert recent[-1]["score"] == 72
     assert recent[-1]["drivers"] == ["EPS beat"]
-    path.unlink(missing_ok=True)
 
 
 def test_infer_unknown_when_no_history():

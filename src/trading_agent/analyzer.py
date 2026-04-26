@@ -10,6 +10,7 @@ import argparse
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .fundamentals import build_fundamentals_report, flush_cache
 from .logic import build_logic_report
@@ -19,11 +20,27 @@ from .risk import calculate_risk
 from .reporter import render_analysis_markdown
 
 
+def _write_output(path: str, content: str) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(content, encoding="utf-8")
+
+
 ATR_MULTIPLIER_BY_STAGE = {
     "early": 2.0,
     "mid": 1.5,
     "late": 1.2,
 }
+
+
+def _component_warning(component: str, report: dict) -> dict | None:
+    """Return a warning for non-critical component failures."""
+    if not isinstance(report, dict) or report.get("status") != "error":
+        return None
+    return {
+        "component": component,
+        "message": report.get("message", "unknown error"),
+    }
 
 
 def _build_risk_report(
@@ -101,12 +118,23 @@ def build_analysis_report(
         base_risk_pct=risk_pct,
     )
 
+    warnings = [
+        warning
+        for warning in [
+            _component_warning("fundamentals", fundamentals_report),
+            _component_warning("logic", logic_report),
+        ]
+        if warning is not None
+    ]
+    status = "degraded" if warnings else "success"
+
     return {
-        "status": "success",
+        "status": status,
         "ticker": ticker,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "account": round(account, 2),
         "base_risk_pct": risk_pct,
+        "warnings": warnings,
         "fundamentals_report": fundamentals_report,
         "trend_report": trend_report,
         "logic_report": logic_report,
@@ -126,6 +154,8 @@ def main():
                         help="技术面回看天数 (默认: 90)")
     parser.add_argument("--json", action="store_true",
                         help="输出 JSON 格式 (默认: Markdown 报告)")
+    parser.add_argument("--output",
+                        help="将输出保存到指定文件路径 (格式跟随 --json)")
     parser.add_argument("--no-save-history", action="store_true",
                         help="不写入逻辑强度历史")
     parser.add_argument("--force-fund", action="store_true",
@@ -152,9 +182,14 @@ def main():
         sys.exit(1)
 
     if args.json:
-        print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
+        output = json.dumps(report, indent=2, ensure_ascii=False, default=str)
     else:
-        print(render_analysis_markdown(report))
+        output = render_analysis_markdown(report)
+
+    if args.output:
+        _write_output(args.output, output)
+
+    print(output)
 
 
 if __name__ == "__main__":

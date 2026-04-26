@@ -15,10 +15,26 @@ def _fmt_money(value: float | int | None) -> str:
     return f"${float(value):.2f}"
 
 
+def _fmt_adjustment(adjustment: object) -> str:
+    if not isinstance(adjustment, dict):
+        return str(adjustment)
+
+    name = adjustment.get("name", "adjustment")
+    factor = adjustment.get("factor")
+    reason = adjustment.get("reason")
+
+    parts = [str(name)]
+    if factor is not None:
+        parts.append(f"factor={factor}")
+    if reason:
+        parts.append(str(reason))
+    return " (" + ", ".join(parts) + ")"
+
+
 def render_analysis_markdown(report: dict) -> str:
     """Render an AnalysisReport into a compact Markdown report."""
     ticker = report.get("ticker", "-")
-    if report.get("status") != "success":
+    if report.get("status") not in {"success", "degraded"}:
         message = report.get("message", "分析失败")
         return f"## {ticker} 波段分析\n\n**状态**: {message}"
 
@@ -36,11 +52,18 @@ def render_analysis_markdown(report: dict) -> str:
     action_label = decision.get("action_label", decision.get("action", "-"))
     multiplier = decision.get("position_multiplier", 0)
     final_risk_pct = decision.get("final_risk_pct")
+    warnings = report.get("warnings") or []
 
     lines = [
         f"## {ticker} 波段分析",
         "",
         f"**当前结论**: {action_label}",
+    ]
+
+    if warnings:
+        lines.extend(["", "**状态**: 数据降级，部分模块不可用"])
+
+    lines.extend([
         "",
         "### 核心状态",
         "",
@@ -55,7 +78,7 @@ def render_analysis_markdown(report: dict) -> str:
         f"- **动作**: {decision.get('action', '-')}",
         f"- **仓位倍数**: {multiplier}x",
         f"- **最终单笔风险**: {_fmt_pct(final_risk_pct * 100 if isinstance(final_risk_pct, float) and final_risk_pct <= 1 else final_risk_pct)}",
-    ]
+    ])
 
     reasons = decision.get("reasons") or []
     if reasons:
@@ -63,7 +86,17 @@ def render_analysis_markdown(report: dict) -> str:
 
     adjustments = decision.get("adjustments") or []
     if adjustments:
-        lines.append(f"- **调整因子**: {'; '.join(adjustments)}")
+        lines.append(f"- **调整因子**: {'; '.join(_fmt_adjustment(item) for item in adjustments)}")
+
+    if warnings:
+        lines.extend(["", "### 数据提示", ""])
+        for warning in warnings:
+            if isinstance(warning, dict):
+                component = warning.get("component", "component")
+                message = warning.get("message", "unknown error")
+                lines.append(f"- **{component}**: {message}")
+            else:
+                lines.append(f"- {warning}")
 
     drivers = logic.get("drivers") or []
     weaknesses = logic.get("weaknesses") or []

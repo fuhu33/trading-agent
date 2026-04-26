@@ -1,5 +1,9 @@
 # 美股波段分析 Skill - 开发 TODO
 
+> **状态说明 (2026-04-26)**: 本文件保留为历史开发记录，记录 Phase 1-4 的早期脚本化推进过程。当前项目已升级为 `src/trading_agent/` 包结构，并已具备 `uv run trading-agent analyze <TICKER>` 单标的完整 Agent 分析入口。后续实施请优先参考 `AGENT_FRAMEWORK_TODO.md` 以及 `.windsurf/plans/` 中的 MVP/Hermes 计划。
+>
+> **当前真实 CLI**: `trend`、`fund`、`data`、`risk`、`sync`、`scan`、`analyze`、`research`、`watch`、`holding`、`monitor`。`report`、`job` 仍属于后续规划能力。
+
 > 项目目标: 构建 Antigravity Skill，通过 `/swing` 命令触发美股波段分析工作流。
 > 架构模式: 双驱动 (基本面叙事 + 技术面鱼身定位 + Agent 推理)
 > 持仓周期: **1-2 周波段，吃鱼身行情**

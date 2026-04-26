@@ -474,18 +474,18 @@ uv run trading-agent analyze NVDA --json
 
 ### Phase 5: 扫描后深度研究
 
-- [ ] 新建或扩展 `research` 命令。
-- [ ] 先调用 `scanner.py` 扫描趋势候选。
-- [ ] 只对 `gate_pass=true` 的标的调用 `analyze`。
-- [ ] 支持 `--group`、`--limit`、`--with-fund`、`--json`。
-- [ ] 按以下优先级排序:
-  - [ ] logic.score 高。
-  - [ ] logic.trend strengthening。
-  - [ ] fish_body early/mid。
-  - [ ] continuation strong。
-  - [ ] ideal_entry true。
-- [ ] 输出候选排名表。
-- [ ] 输出 Top N 的简版分析。
+- [x] 新建或扩展 `research` 命令。
+- [x] 先调用 `scanner.py` 扫描趋势候选。
+- [x] 只对 `gate_pass=true` 的标的调用 `analyze`。
+- [x] 支持 `--group`、`--limit`、`--with-fund`、`--json`。
+- [x] 按以下优先级排序:
+  - [x] logic.score 高。
+  - [x] logic.trend strengthening。
+  - [x] fish_body early/mid。
+  - [x] continuation strong。
+  - [x] ideal_entry true。
+- [x] 输出候选排名表。
+- [x] 输出 Top N 的简版分析。
 
 验收标准:
 
@@ -497,18 +497,18 @@ uv run trading-agent research --group mega_cap --limit 3
 
 ### Phase 6: 观察池与持仓监控
 
-- [ ] 新建 `src/trading_agent/state.py` 或 `watchlist.py`。
-- [ ] 支持添加观察标的。
-- [ ] 支持标记持仓标的及入场价、止损价、初始逻辑分。
-- [ ] 新增 `watch add/list/remove` 命令。
-- [ ] 新增 `monitor` 命令。
-- [ ] `monitor` 输出:
-  - [ ] Gate 是否仍 PASS。
-  - [ ] logic.score 是否下降。
-  - [ ] logic.trend 是否 weakening。
-  - [ ] continuation 是否 weakening。
-  - [ ] 是否触发止损或趋势破位。
-- [ ] 输出继续持有、减仓、退出、继续观察建议。
+- [x] 新建 `src/trading_agent/state.py` 或 `watchlist.py`。
+- [x] 支持添加观察标的。
+- [x] 支持标记持仓标的及入场价、止损价、初始逻辑分。
+- [x] 新增 `watch add/list/remove` 命令。
+- [x] 新增 `monitor` 命令。
+- [x] `monitor` 输出:
+  - [x] Gate 是否仍 PASS。
+  - [x] logic.score 是否下降。
+  - [x] logic.trend 是否 weakening。
+  - [x] continuation 是否 weakening。
+  - [x] 是否触发止损或趋势破位。
+- [x] 输出继续持有、减仓、退出、继续观察建议。
 
 验收标准:
 
@@ -685,11 +685,20 @@ uv run trading-agent analyze --help
 可正常加载新增 CLI
 ```
 
+已继续完成后续 MVP:
+
+- [x] 新增 `research.py`: 支持扫描后仅对 Gate 通过标的做完整分析，并按决策、逻辑强度、鱼身阶段、延续性、ideal_entry、仓位倍数排序。
+- [x] 新增 `state.py`: 管理 `state/trading_state.json`，支持观察池与持仓状态。
+- [x] 新增 `monitor.py`: 对观察池和持仓执行持续监控，输出止损、Gate、逻辑转弱、延续性转弱告警。
+- [x] CLI 接入 `research`、`watch`、`holding`、`monitor`。
+- [x] 新增测试覆盖 `research`、`state`、`monitor`。
+- [x] `analyze` 支持 `degraded` 状态，基本面/逻辑临时失败时保留技术面结果并显式输出 warnings。
+
 下一步建议优先继续:
 
 ```text
-1. Phase 5: research 扫描后深度研究
-2. Phase 6: watch/monitor 观察池与持仓监控
-3. Phase 7: Skill 薄封装重构
-4. README/SKILL.md 与新 CLI 对齐
+1. Hermes/cron 定时调用 research 与 monitor
+2. reports/YYYY-MM-DD 报告归档
+3. 通知通道 (邮件/Telegram/企业微信等)
+4. HTML/report 命令或仪表盘
 ```

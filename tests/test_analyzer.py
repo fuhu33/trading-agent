@@ -1,6 +1,7 @@
 """analyzer 编排层测试。"""
 
 from trading_agent import analyzer
+from trading_agent.reporter import render_analysis_markdown
 
 
 def _fundamentals():
@@ -48,6 +49,14 @@ def _logic():
     }
 
 
+def _logic_error():
+    return {
+        "status": "error",
+        "ticker": "NVDA",
+        "message": "fundamentals unavailable",
+    }
+
+
 def test_build_analysis_report_orchestrates_pipeline(monkeypatch):
     monkeypatch.setattr(analyzer, "build_fundamentals_report", lambda *args, **kwargs: _fundamentals())
     monkeypatch.setattr(analyzer, "build_trend_report", lambda *args, **kwargs: _trend())
@@ -79,3 +88,45 @@ def test_build_analysis_report_skips_risk_when_entry_not_allowed(monkeypatch):
 
     assert report["decision_report"]["entry_allowed"] is False
     assert report["risk_report"] is None
+
+
+def test_build_analysis_report_marks_noncritical_failures_as_degraded(monkeypatch):
+    monkeypatch.setattr(
+        analyzer,
+        "build_fundamentals_report",
+        lambda *args, **kwargs: {
+            "status": "error",
+            "ticker": "NVDA",
+            "message": "yfinance unavailable",
+        },
+    )
+    monkeypatch.setattr(analyzer, "build_trend_report", lambda *args, **kwargs: _trend())
+    monkeypatch.setattr(analyzer, "build_logic_report", lambda *args, **kwargs: _logic_error())
+
+    report = analyzer.build_analysis_report("NVDA", save_history=False)
+
+    assert report["status"] == "degraded"
+    assert report["warnings"] == [
+        {"component": "fundamentals", "message": "yfinance unavailable"},
+        {"component": "logic", "message": "fundamentals unavailable"},
+    ]
+    assert report["decision_report"]["entry_allowed"] is False
+
+
+def test_render_analysis_markdown_shows_degraded_warnings(monkeypatch):
+    monkeypatch.setattr(
+        analyzer,
+        "build_fundamentals_report",
+        lambda *args, **kwargs: {
+            "status": "error",
+            "ticker": "NVDA",
+            "message": "yfinance unavailable",
+        },
+    )
+    monkeypatch.setattr(analyzer, "build_trend_report", lambda *args, **kwargs: _trend())
+    monkeypatch.setattr(analyzer, "build_logic_report", lambda *args, **kwargs: _logic_error())
+
+    output = render_analysis_markdown(analyzer.build_analysis_report("NVDA"))
+
+    assert "数据降级" in output
+    assert "yfinance unavailable" in output

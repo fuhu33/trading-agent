@@ -2,7 +2,7 @@
 
 > **目标**: 找到由业绩驱动 + 行业景气 + 技术健康的标的，吃 1-2 周的鱼身行情。
 
-通过 **基本面叙事 + 技术面鱼身定位 + AI Agent 推理** 三层共振模型，输出可执行的波段持仓决策（含仓位倍数 + 风控）。
+通过 **基本面叙事 + 技术面鱼身定位 + 逻辑强度评分 + 决策引擎** 的共振模型，输出可执行的波段持仓决策（含仓位倍数 + 风控）。
 
 > **策略边界**: 当前框架默认只评估做多波段；空头趋势用于回避/观察，不主动输出做空建议。
 
@@ -44,14 +44,15 @@
        [决策门 2] gate.pass=false → Watchlist
               ↓
 ┌─────────────────────────────────────────────────────────┐
-│  Stage 2: 整合推理 (swing_analyst.md, 5 步)              │
-│  └─ 共振分析 → 仓位倍数 (1.5×/1.2×/1.0×/0.6×/0.4×/0×)  │
+│  Stage 2: 逻辑强度评分 (logic.py)                       │
+│  └─ logic.score + logic.trend + drivers/weaknesses       │
 └─────────────────────────────────────────────────────────┘
               ↓
 ┌─────────────────────────────────────────────────────────┐
-│  Stage 3: 风控 + 报告 (risk.py)                         │
-│  ├─ ATR 止损 + 分阶段目标价                              │
-│  └─ 按 output_schema.md 模板输出                         │
+│  Stage 3: 决策 + 风控 + 报告 (decision/risk/reporter)   │
+│  ├─ 介入/小仓/观察/拒绝/减仓                              │
+│  ├─ ATR 止损 + 仓位风险                                  │
+│  └─ JSON 或 Markdown 输出                                │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -80,7 +81,11 @@ cp .env.example .env
 # 通过 SKILL.md 触发 Antigravity Agent (推荐)
 swing NVDA
 
-# 或直接跑 CLI
+# 或直接跑完整 CLI
+uv run trading-agent analyze NVDA
+uv run trading-agent analyze NVDA --json
+
+# 分步调试命令
 uv run trading-agent fund NVDA      # Stage 0
 uv run trading-agent trend NVDA     # Stage 1
 uv run trading-agent risk --entry 209 --stop 195 --atr 4.89
@@ -99,23 +104,53 @@ uv run trading-agent scan --group mega_cap --delay 1.5 --with-fund
 uv run trading-agent scan --with-fund --delay 1.5
 ```
 
+### 深度研究与监控
+
+```bash
+# 扫描后只对 Gate 通过标的做完整 analyze 并排序
+uv run trading-agent research --group mega_cap --limit 3
+uv run trading-agent research AAPL,MSFT,NVDA --json
+
+# 观察池与持仓监控
+uv run trading-agent watch add NVDA --notes "AI leader"
+uv run trading-agent holding add NVDA --entry 200 --stop 190 --size 10 --initial-logic-score 72
+uv run trading-agent monitor
+```
+
 ---
 
-## 命令体系 (在 Antigravity 中触发 SKILL.md)
+## 命令体系
 
-| 命令 | 行为 | 调用 LLM |
-|------|------|:---:|
-| `swing NVDA` | 完整双驱动分析 (Stage 0 + 1 + 推理 + 风控) | ✅ |
-| `swing fund NVDA` | 仅基本面叙事 | ❌ |
-| `swing trend NVDA` | 仅技术面 + 鱼身定位 | ❌ |
-| `swing data NVDA` | 仅原始 K 线 | ❌ |
-| `swing risk --entry 150 --stop 142` | 仅风控计算 | ❌ |
-| `swing scan` | 全量 RWA 扫描 (仅技术) | 部分 |
-| `swing scan --with-fund` | 扫描 + 基本面 (推荐三层共振筛选) | 部分 |
-| `swing scan --group mega_cap` | 大盘科技股扫描 | 部分 |
-| `swing report NVDA` | 生成 HTML K线图交互报告 | ❌ |
-| `swing report NVDA --serve` | 本地服务器预览报告 | ❌ |
-| `swing sync` | 同步 Bitget 品种列表 | ❌ |
+### CLI 命令
+
+| 命令 | 行为 |
+|------|------|
+| `uv run trading-agent analyze NVDA` | 单标的完整 Agent 分析，推荐主入口 |
+| `uv run trading-agent analyze NVDA --json` | 输出完整结构化 JSON |
+| `uv run trading-agent fund NVDA` | 仅基本面叙事 |
+| `uv run trading-agent trend NVDA` | 仅技术面 + 鱼身定位 |
+| `uv run trading-agent data NVDA` | 仅原始 K 线 |
+| `uv run trading-agent risk --entry 150 --stop 142` | 仅风控计算 |
+| `uv run trading-agent scan --group mega_cap` | 批量趋势扫描 |
+| `uv run trading-agent scan --with-fund` | 扫描 + 基本面摘要 |
+| `uv run trading-agent research --group mega_cap --limit 3` | 扫描后深度研究与候选排名 |
+| `uv run trading-agent watch add NVDA` | 添加观察标的 |
+| `uv run trading-agent holding add NVDA --entry 200 --stop 190 --size 10 --initial-logic-score 72` | 添加持仓状态 |
+| `uv run trading-agent monitor` | 监控观察池与持仓 |
+| `uv run trading-agent sync` | 同步 Bitget 品种列表 |
+
+### Skill 触发
+
+| 命令 | 行为 |
+|------|------|
+| `swing NVDA` | 调用 `analyze`，再由 Agent 解释结构化结果 |
+| `swing fund NVDA` | 调用 `fund` |
+| `swing trend NVDA` | 调用 `trend` |
+| `swing scan --group mega_cap` | 调用 `scan` |
+| `swing research --group mega_cap` | 调用 `research` |
+| `swing monitor` | 调用 `monitor` |
+
+> `report`、`job`、自动通知、自动下单当前是后续规划能力，不属于本版本已实现 CLI。
 
 ---
 
@@ -150,7 +185,8 @@ uv run trading-agent scan --with-fund --delay 1.5
 trading-agent/
 ├── README.md                    # 本文件
 ├── SKILL.md                     # Antigravity Skill 入口 (触发规则 + 工作流)
-├── TODO.md                      # 详细开发追踪 (Phase 1-4)
+├── TODO.md                      # 历史开发追踪
+├── AGENT_FRAMEWORK_TODO.md      # Agent 框架优化追踪
 ├── pyproject.toml               # 依赖管理 (uv + hatchling)
 ├── .env.example / .env          # Finnhub API Key (.env gitignored)
 │
@@ -163,6 +199,14 @@ trading-agent/
 │   ├── data.py                  # K 线获取 (Bitget API)
 │   ├── fundamentals.py          # Stage 0: 基本面叙事 (yfinance + Finnhub)
 │   ├── trend.py                 # Stage 1: 技术面 + 鱼身定位
+│   ├── logic.py                 # 逻辑强度评分与变化判断
+│   ├── history.py               # 本地逻辑强度历史
+│   ├── decision.py              # 决策引擎与仓位倍数
+│   ├── analyzer.py              # 单标的完整编排入口
+│   ├── research.py              # 扫描后深度研究与候选排名
+│   ├── state.py                 # 观察池与持仓状态
+│   ├── monitor.py               # 观察池/持仓监控
+│   ├── reporter.py              # Markdown 报告渲染
 │   ├── risk.py                  # 风控计算 (ATR-based)
 │   └── scanner.py               # 批量扫描 (支持 --with-fund)
 │
@@ -170,15 +214,25 @@ trading-agent/
 │   ├── swing_analyst.md         # 5 步推理框架 (含决策矩阵 + 7 个 few-shot)
 │   └── output_schema.md         # 报告输出模板
 │
-├── tests/                       # 单元测试 (56 用例)
-│   ├── test_risk_calculator.py
-│   ├── test_trend_analysis.py
+├── tests/
+│   ├── test_analyzer.py
+│   ├── test_decision.py
 │   ├── test_fundamentals.py
+│   ├── test_history.py
+│   ├── test_logic.py
+│   ├── test_monitor.py
+│   ├── test_research.py
+│   ├── test_risk_calculator.py
+│   ├── test_state.py
+│   ├── test_trend_analysis.py
 │   └── test_scanner.py
 │
 └── config/
-    ├── bitget_symbols.json      # Bitget 品种缓存 (24h TTL)
-    └── fundamentals_cache.json  # 基本面缓存 (6h TTL, gitignored)
+│   ├── bitget_symbols.json      # Bitget 品种缓存 (24h TTL)
+│   ├── fundamentals_cache.json  # 基本面缓存 (6h TTL, gitignored)
+│   └── logic_history.json       # 逻辑强度历史 (gitignored)
+│
+└── reports/                     # 生成报告输出目录 (gitignored)
 ```
 
 ---
@@ -199,44 +253,55 @@ trading-agent/
 
 ## 报告示例
 
-完整报告包含 5 个板块:
+完整报告包含以下板块:
 
 ```
-## NVDA 波段分析报告 | 2026-04-25
-**叙事**: 故事强 (7/10) | **趋势**: 多头 | **鱼身**: 鱼身 | **Gate**: ✅ PASS
+## NVDA 波段分析
 
-### 📖 基本面叙事
-- 业绩 超预期 +5.32%
-- 行业 SMH 月线 +33%
-- 评级 Strong Buy (1.29 / 56 位分析师)
-- 目标价 +29% 上涨空间
+**当前结论**: Enter
 
-### 📊 趋势 + 鱼身定位
-- 多头 strong, ADX 33.78
-- 启动 11 天前, 累计 +11.17%, 偏离 +7.73%
+### 核心状态
 
-### ⚡ 延续动力: 动力强劲
-- MACD 加速, ADX 上升, 量比 1.83x
+- 价格、趋势 Gate、逻辑强度、鱼身阶段、趋势持续性
 
-### 🎯 共振分析与仓位决策
-- 入场: ✅ 做
-- 仓位倍数: 0.6× → 单笔风险 1.2%
+### 决策
 
-### 🛡️ 风控建议
-- 入场 $209 / 止损 $200 / 2R 目标 $227 / 中线目标 $268
+- 动作、仓位倍数、最终单笔风险、理由、调整因子
+
+### 逻辑强度
+
+- 驱动因素、隐忧、逻辑变化
+
+### 风控
+
+- 入场、止损、2R/3R、仓位市值、最大亏损
 ```
+
+---
+
+## 当前 MVP 边界
+
+- 已完成单标的完整分析闭环：`analyze`。
+- 已完成批量趋势扫描：`scan`。
+- 已完成扫描后深度研究与候选排名：`research`。
+- 已完成观察池、持仓状态与监控：`watch`、`holding`、`monitor`。
+- 已完成基本面、技术面、逻辑强度、决策和风控的结构化输出。
+- 尚未实现 `report`、`job`、自动通知、自动下单。
+- 后续 Hermes Agent 定时执行应优先基于 `research --json`、`monitor --json` 和报告落盘能力扩展。
 
 ---
 
 ## 开发追踪
 
-详细任务追踪见 [`TODO.md`](TODO.md):
+历史任务追踪见 [`TODO.md`](TODO.md)，Agent 框架优化见 [`AGENT_FRAMEWORK_TODO.md`](AGENT_FRAMEWORK_TODO.md):
 
 - **Phase 1**: 基础骨架 (Bitget 同步 + 趋势分析 + Skill) ✅
 - **Phase 2**: 推理深化 (Prompt + 风控 + 输出格式) ✅
 - **Phase 3**: 扩展能力 (批量扫描 + 分组) ✅
 - **Phase 4**: 双驱动重构 (基本面 + 鱼身定位 + 仓位矩阵) ✅
-- **Phase 5** (待定): VPS 部署 + 历史对比 + 期权数据
+- **Agent MVP**: `analyze + logic + history + decision + reporter` ✅
+- **Research/Monitor MVP**: `research + watch + holding + monitor` ✅
+- **下一阶段**: Hermes 定时任务、报告归档、通知通道
 
 ---
 

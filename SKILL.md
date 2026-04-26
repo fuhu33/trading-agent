@@ -1,26 +1,27 @@
 ---
 name: swing-analysis
-description: "美股波段分析工作流 (基本面 + 技术面双驱动)。先用基本面叙事筛选业绩驱动标的, 再用技术面 + 鱼身定位找最佳介入时机, 目标是 1-2 周波段持仓吃鱼身行情。触发词: swing, 波段分析, 趋势分析, swing trade"
+description: "美股波段分析工作流 (基本面 + 技术面双驱动 + 逻辑强度 + 决策引擎)。触发词: swing, 波段分析, 趋势分析, swing trade"
 ---
 
 ## 使用方式
 
 ### 单只完整分析 (基本面 + 技术面双驱动)
 ```
-swing NVDA          — 完整流程: Stage 0 (基本面) + Stage 1+2 (技术面+鱼身) + 整合推理
+swing NVDA          — 调用 analyze 完整分析，再由 Agent 解释结构化结果
 波段分析 AAPL
 ```
 
-### 子命令 (仅运行脚本，不触发推理)
+### 子命令
 ```
 swing fund NVDA     — 仅基本面分析 (业绩/行业/评级)
 swing trend NVDA    — 仅技术面 + 鱼身定位 (展示指标)
 swing data NVDA     — 仅获取原始行情数据
 swing risk --entry 150 --stop 142  — 仅风控计算
 swing sync          — 同步 Bitget 品种列表
-swing report NVDA              — 生成 HTML K线图报告
-swing report MSFT,META,AAPL    — 批量生成 + 索引页
-swing report NVDA --serve      — 本地服务器预览
+swing research --group mega_cap --limit 3  — 扫描后深度研究与候选排名
+swing watch add NVDA --notes "AI leader"   — 添加观察标的
+swing holding add NVDA --entry 200 --stop 190 --size 10 --initial-logic-score 72
+swing monitor       — 监控观察池与持仓
 ```
 
 ### 批量扫描
@@ -34,35 +35,28 @@ swing scan AAPL,MSFT,NVDA   — 指定品种
 
 > **数据约束**: 技术面分析仅限 Bitget 已上线的 RWA 合约品种 (68 个)。基本面来自 yfinance + Finnhub。
 > **策略边界**: 当前框架默认只评估做多波段；`bearish` 趋势用于回避/观察，不主动输出做空建议。
+> **当前边界**: `report`、`job`、自动通知、自动下单仍是后续规划能力，不属于当前已实现 CLI。
 
 ---
 
-## 核心流程: 双驱动决策模型
+## 核心流程: 代码判断，Agent 解释
 
 ```
 Stage 0: 基本面叙事审查 (fundamentals.py)
   └── 业绩超预期? 行业景气? 机构看多? 财报窗口?
-  └── 输出 narrative.score (0-10) + thesis (strong/moderate/weak) + earnings_catalyst
-        ↓
-[决策门 1] thesis=weak 且 score<4 → 直接拦截, 不做
+  └── 输出 narrative.score + thesis + earnings_catalyst
         ↓
 Stage 1: 技术 Gate + 鱼身定位 (trend.py)
-  └── 趋势成立? (Gate)
-  └── 鱼身位置? (鱼头/鱼身/鱼尾)
+  └── 趋势成立? 鱼身位置? 延续动力?
         ↓
-[决策门 2] gate.pass=false → 加入 Watchlist
+Stage 2: 逻辑强度评分 (logic.py)
+  └── logic.score / logic.grade / logic.trend / drivers / weaknesses
         ↓
-Stage 2: 整合推理 (swing_analyst.md, 5 步)
-  └── Step 0: 基本面叙事
-  └── Step 1: 趋势 + 鱼身
-  └── Step 2: 延续动力
-  └── Step 3: 共振分析 (核心)
-  └── Step 4: 风控建议
-        ↓
-Stage 3: 风控计算 + 输出报告 (output_schema.md)
+Stage 3: 决策 + 风控 + 报告 (decision.py / risk.py / reporter.py)
+  └── enter / small_enter / watch / reject / reduce
 ```
 
-**核心理念**: 基本面提供"故事强度"，技术面提供"介入时机"，鱼身定位回答"是不是吃鱼身的位置"。三层共振才是核心持仓信号。
+**核心理念**: Python 代码负责稳定地产生结构化判断；Agent 负责调度命令、读取 JSON、解释原因、追问用户风险偏好并输出自然语言报告。
 
 ---
 
@@ -96,62 +90,42 @@ Stage 3: 风控计算 + 输出报告 (output_schema.md)
    ```bash
    uv run trading-agent scan [TICKERS] [--group GROUP] [--delay 1.5] [--with-fund]
    ```
-   仅对 Gate 通过的标的进行 Stage 2 深度推理。
-7. **`swing report <tickers> [--serve]`**: 生成 HTML K线图交互报告
+7. **`swing research [tickers] [--group G] [--limit N]`**: 扫描后深度研究与排名
    ```bash
-   uv run trading-agent report <TICKERS> [--with-fund] [--serve] [--no-open]
+   uv run trading-agent research [TICKERS] [--group GROUP] [--limit N] --json
    ```
-8. **`swing <ticker>`** (无子命令): 执行完整双驱动流程
+8. **`swing watch ...` / `swing holding ...` / `swing monitor`**: 状态管理与监控
+   ```bash
+   uv run trading-agent watch add <TICKER> [--notes TEXT]
+   uv run trading-agent holding add <TICKER> --entry <ENTRY> --stop <STOP> --size <SIZE> --initial-logic-score <SCORE>
+   uv run trading-agent monitor --json
+   ```
+9. **`swing analyze <ticker>`** 或 **`swing <ticker>`**: 单标的完整分析
+   ```bash
+   uv run trading-agent analyze <TICKER> --json
+   ```
 
 ### 完整双驱动流程
 
-**Step 1: 基本面叙事 (Stage 0)**
+默认 `swing <ticker>` 应调用:
 
 ```bash
-uv run trading-agent fund <TICKER>
+uv run trading-agent analyze <TICKER> --json
 ```
 
-读取 `narrative.score`、`narrative.thesis` 与 `narrative.earnings_catalyst`:
+Agent 读取 JSON 后重点解释:
 
-- **拦截分支 A**: `thesis == "weak"` 且 `score < 4`
-  → 输出 `output_schema.md` 中的 "分支 A: 基本面拦截" 模板
-  → **不进行技术面分析，流程结束**
-- **通过**: 进入 Step 2
+- `decision_report.action` 和 `action_label`
+- `decision_report.position_multiplier`
+- `decision_report.reasons`
+- `decision_report.adjustments`
+- `logic_report.logic.score`
+- `logic_report.logic.trend`
+- `trend_report.gate`
+- `trend_report.fish_body`
+- `risk_report`
 
-**Step 2: 技术面 + 鱼身 (Stage 1)**
-
-```bash
-uv run trading-agent trend <TICKER>
-```
-
-新输出包含 `fish_body` 字段 (stage / trend_age_days / cumulative_pct / deviation_pct / ideal_entry)。
-
-**Step 3: Gate 判断**
-
-读取 `gate.pass`:
-
-- **拦截分支 B**: `gate.pass == false`
-  → 输出 "分支 B: Gate FAIL" 模板 (注明基本面状态)
-  → **不进入深度推理**
-- **通过**: 进入 Step 4
-
-**Step 4: 整合推理 (Stage 2, 核心)**
-
-按 `prompts/swing_analyst.md` 的 5 步推理:
-
-1. **基本面叙事审查**: 引用 `narrative.drivers/concerns`
-2. **趋势 + 鱼身**: 引用 `trend.*` 和 `fish_body.*`
-3. **延续动力**: 引用 `continuation.*`
-4. **共振分析** (核心): 三维交叉 (基本面 × 鱼身 × 动力) → 决策矩阵
-5. **风控建议**: ATR-based 止损 + 分析师目标价
-
-**Step 5: 风控计算 (如建议入场)**
-
-```bash
-uv run trading-agent risk --entry <ENTRY> --stop <STOP> --atr <ATR>
-```
-
-**Step 6: 按 `output_schema.md` 完整模板输出**
+Agent 不应重新计算仓位矩阵或临场改写核心业务规则。
 
 ---
 
@@ -167,6 +141,14 @@ src/trading_agent/
 ├── data.py             # K 线获取 (Bitget API)
 ├── trend.py            # 技术面 + 鱼身定位
 ├── fundamentals.py     # 基本面叙事 (yfinance + Finnhub)
+├── logic.py            # 逻辑强度评分与变化判断
+├── history.py          # 本地逻辑强度历史
+├── decision.py         # 决策引擎与仓位倍数
+├── analyzer.py         # 单标的完整编排入口
+├── research.py         # 扫描后深度研究与候选排名
+├── state.py            # 观察池与持仓状态
+├── monitor.py          # 观察池与持仓监控
+├── reporter.py         # Markdown 报告渲染
 ├── risk.py             # 风控计算
 └── scanner.py          # 批量扫描
 
@@ -176,9 +158,17 @@ prompts/
 
 config/
 ├── bitget_symbols.json      # 品种缓存 (24h TTL)
-└── fundamentals_cache.json  # 基本面缓存 (6h TTL)
+├── fundamentals_cache.json  # 基本面缓存 (6h TTL)
+└── logic_history.json       # 逻辑强度历史
 
 tests/
+├── test_analyzer.py         # 编排层测试
+├── test_decision.py         # 决策引擎测试
+├── test_history.py          # 逻辑历史测试
+├── test_logic.py            # 逻辑评分测试
+├── test_research.py         # 深度研究测试
+├── test_state.py            # 状态管理测试
+├── test_monitor.py          # 监控测试
 ├── test_risk_calculator.py  # 风控计算测试
 ├── test_trend_analysis.py   # 趋势分析测试
 ├── test_fundamentals.py     # 基本面评分测试

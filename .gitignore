@@ -15,13 +15,20 @@ wheels/
 # Fundamentals cache (会过期，无需提交)
 config/fundamentals_cache.json
 config/logic_history.json
+config/yfinance_cache/
 
 # Generated reports
 reports/
+
+# Runtime state for scheduled jobs
+state/
 
 # Debug artifacts (根目录意外产出)
 /*.json
 
 # Pytest
 .pytest_cache/
+.ruff_cache/
 .test_artifacts/
+.tmp-build/
+.tmp-test/

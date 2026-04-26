@@ -37,6 +37,13 @@ CACHE_DIR = _PROJECT_ROOT / "config"
 CACHE_FILE = CACHE_DIR / "fundamentals_cache.json"
 CACHE_TTL_SECONDS = 6 * 3600  # 6 小时 (基本面变化慢)
 
+# Keep yfinance's SQLite timezone cache inside the project. The default user
+# cache path can be unwritable in sandboxed/desktop runs.
+try:
+    yf.set_tz_cache_location(str(CACHE_DIR / "yfinance_cache"))
+except Exception:
+    pass
+
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 

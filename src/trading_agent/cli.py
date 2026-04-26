@@ -8,6 +8,10 @@
     uv run trading-agent sync [--force]
     uv run trading-agent scan [--group mega_cap] [--with-fund]
     uv run trading-agent analyze NVDA
+    uv run trading-agent research --group mega_cap --limit 3
+    uv run trading-agent watch add NVDA
+    uv run trading-agent holding add NVDA --entry 200 --stop 190 --size 10 --initial-logic-score 70
+    uv run trading-agent monitor
 """
 
 import sys
@@ -18,13 +22,23 @@ def main():
         print("用法: trading-agent <command> [args...]")
         print()
         print("命令:")
+        print("  analyze <TICKER>             单标的完整 Agent 分析 (推荐主入口)")
         print("  trend  <TICKER>              趋势分析 + 鱼身定位")
         print("  fund   <TICKER>              基本面叙事分析")
         print("  data   <TICKER>              原始 K 线数据")
         print("  risk   --entry X --stop Y    风控计算")
         print("  sync   [--force]             同步 Bitget 品种列表")
         print("  scan   [TICKERS] [--group G] 批量扫描")
-        print("  analyze <TICKER>             单标的完整 Agent 分析")
+        print("  research [--group G]         扫描后深度研究与候选排名")
+        print("  watch   add/list/remove      观察池管理")
+        print("  holding add/list/update/remove 持仓状态管理")
+        print("  monitor                      观察池与持仓监控")
+        print()
+        print("示例:")
+        print("  uv run trading-agent analyze NVDA")
+        print("  uv run trading-agent research --group mega_cap --limit 3")
+        print("  uv run trading-agent watch add NVDA --notes ai")
+        print("  uv run trading-agent analyze NVDA --json --output reports/NVDA.json")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -52,9 +66,26 @@ def main():
     elif command == "analyze":
         from .analyzer import main as analyze_main
         analyze_main()
+    elif command == "research":
+        from .research import main as research_main
+        research_main()
+    elif command == "watch":
+        from .state import watch_main
+        watch_main()
+    elif command == "holding":
+        from .state import holding_main
+        holding_main()
+    elif command == "monitor":
+        from .monitor import main as monitor_main
+        monitor_main()
     else:
         print(f"未知命令: {command}", file=sys.stderr)
-        print("可用命令: trend, fund, data, risk, sync, scan, analyze", file=sys.stderr)
+        print(
+            "可用命令: trend, fund, data, risk, sync, scan, analyze, "
+            "research, watch, holding, monitor",
+            file=sys.stderr,
+        )
+        print("推荐完整分析: uv run trading-agent analyze NVDA", file=sys.stderr)
         sys.exit(1)
 
 

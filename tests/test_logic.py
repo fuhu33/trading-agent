@@ -80,7 +80,6 @@ def test_build_logic_report_scores_strong_case():
     }
     assert any("EPS 超预期" in item for item in logic["drivers"])
     assert "原始叙事驱动" in logic["drivers"]
-    path.unlink(missing_ok=True)
 
 
 def test_logic_trend_uses_history():
@@ -97,7 +96,6 @@ def test_logic_trend_uses_history():
     assert result["logic"]["previous_score"] == 80
     assert result["logic"]["delta"] == 18
     assert result["logic"]["trend"] == "strengthening"
-    path.unlink(missing_ok=True)
 
 
 def test_missing_trend_lowers_price_confirmation_and_confidence():
@@ -114,7 +112,6 @@ def test_missing_trend_lowers_price_confirmation_and_confidence():
     assert logic["factor_scores"]["price_confirmation"] == 0
     assert logic["confidence"] == 0.9
     assert "缺少价格验证数据" in logic["weaknesses"]
-    path.unlink(missing_ok=True)
 
 
 def test_weak_logic_scores_low():
@@ -149,7 +146,6 @@ def test_weak_logic_scores_low():
     assert result["logic"]["grade"] == "weak"
     assert any("EPS 大幅 miss" in item for item in result["logic"]["weaknesses"])
     assert "叙事弱" in result["logic"]["weaknesses"]
-    path.unlink(missing_ok=True)
 
 
 def test_error_fundamentals_returns_error():
