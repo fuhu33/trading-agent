@@ -6,9 +6,6 @@
   - 缓存 TTL 验证
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
-
 from trading_agent.fundamentals import compute_narrative
 
 

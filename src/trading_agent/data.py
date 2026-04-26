@@ -75,7 +75,7 @@ def fetch_all_candles(symbol: str, days: int = 90) -> list[dict]:
 
         try:
             page = fetch_candles_page(symbol, end_time=end_time, limit=limit)
-        except Exception as e:
+        except Exception:
             if not all_candles:
                 raise
             # 已有部分数据，分页获取失败时停止

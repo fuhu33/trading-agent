@@ -23,7 +23,6 @@ from pathlib import Path
 import yfinance as yf
 from dotenv import load_dotenv
 
-from .exceptions import DataError
 from .utils import safe_float, make_request
 
 # 加载 .env (如果存在)

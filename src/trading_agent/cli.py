@@ -7,6 +7,7 @@
     uv run trading-agent risk --entry 150 --stop 142
     uv run trading-agent sync [--force]
     uv run trading-agent scan [--group mega_cap] [--with-fund]
+    uv run trading-agent analyze NVDA
 """
 
 import sys
@@ -23,6 +24,7 @@ def main():
         print("  risk   --entry X --stop Y    风控计算")
         print("  sync   [--force]             同步 Bitget 品种列表")
         print("  scan   [TICKERS] [--group G] 批量扫描")
+        print("  analyze <TICKER>             单标的完整 Agent 分析")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -47,9 +49,12 @@ def main():
     elif command == "scan":
         from .scanner import main as scan_main
         scan_main()
+    elif command == "analyze":
+        from .analyzer import main as analyze_main
+        analyze_main()
     else:
         print(f"未知命令: {command}", file=sys.stderr)
-        print("可用命令: trend, fund, data, risk, sync, scan", file=sys.stderr)
+        print("可用命令: trend, fund, data, risk, sync, scan, analyze", file=sys.stderr)
         sys.exit(1)
 
 

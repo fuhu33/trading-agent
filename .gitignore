@@ -14,6 +14,7 @@ wheels/
 
 # Fundamentals cache (会过期，无需提交)
 config/fundamentals_cache.json
+config/logic_history.json
 
 # Generated reports
 reports/
@@ -23,3 +24,4 @@ reports/
 
 # Pytest
 .pytest_cache/
+.test_artifacts/

@@ -5,9 +5,7 @@
   - format_table 输出格式
 """
 
-import pytest
-
-from trading_agent.scanner import resolve_tickers, MEGA_CAP, format_table
+from trading_agent.scanner import resolve_tickers, format_table
 
 
 # ---------------------------------------------------------------------------

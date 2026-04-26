@@ -10,7 +10,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from trading_agent.trend import (
     calc_ema,
