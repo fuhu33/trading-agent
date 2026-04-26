@@ -229,6 +229,7 @@ def _extract_next_earnings(yf_obj: yf.Ticker) -> dict | None:
                 "date": date_str,
                 "days_until": days_until,
                 "in_window": days_until is not None and 0 <= days_until <= EARNINGS_WINDOW_DAYS,
+                "source": "yfinance",
             }
         return None
     except Exception:
@@ -298,6 +299,12 @@ def fetch_finnhub_earnings_calendar(ticker: str) -> dict | None:
                         "date": ev["date"],
                         "days_until": days_until,
                         "in_window": 0 <= days_until <= EARNINGS_WINDOW_DAYS,
+                        "source": "finnhub",
+                        "hour": ev.get("hour"),
+                        "eps_estimate": safe_float(ev.get("epsEstimate"), default=None),
+                        "revenue_estimate": safe_float(ev.get("revenueEstimate"), default=None),
+                        "quarter": ev.get("quarter"),
+                        "year": ev.get("year"),
                     }
             except (ValueError, KeyError):
                 continue
@@ -309,6 +316,25 @@ def fetch_finnhub_earnings_calendar(ticker: str) -> dict | None:
 # ---------------------------------------------------------------------------
 # 综合评分
 # ---------------------------------------------------------------------------
+
+def _format_earnings_hour(hour: str | None) -> str:
+    """将 Finnhub 财报时段转换为报告友好的中文标签。"""
+    if not hour:
+        return ""
+    hour_map = {
+        "bmo": "盘前",
+        "amc": "盘后",
+        "dmh": "盘中",
+    }
+    return hour_map.get(str(hour).lower(), str(hour))
+
+
+def _format_earnings_source(source: str | None) -> str:
+    """格式化财报日来源，便于追踪数据链路。"""
+    if not source:
+        return ""
+    return f"[{source}]"
+
 
 def compute_narrative(earnings: dict | None,
                       next_earnings: dict | None,
@@ -383,17 +409,22 @@ def compute_narrative(earnings: dict | None,
     pre_score = score
     if next_earnings and next_earnings.get("in_window"):
         days = next_earnings['days_until']
+        hour_label = _format_earnings_hour(next_earnings.get("hour"))
+        source_label = _format_earnings_source(next_earnings.get("source"))
+        timing_text = f"{days}天后{hour_label}发财报{source_label}"
         if pre_score >= 6:
             score += 1
-            drivers.append(f"财报催化剂: {days}天后发财报, 叙事强 -> 先手窗口")
+            drivers.append(f"财报催化剂: {timing_text}, 叙事强 -> 先手窗口")
         elif pre_score >= 4:
-            concerns.append(f"财报 {days} 天后, 叙事中性 -> 小仓位试单")
+            concerns.append(f"财报 {timing_text}, 叙事中性 -> 小仓位试单")
         else:
             score -= 2
-            concerns.append(f"财报 {days} 天后, 叙事弱 -> 回避")
+            concerns.append(f"财报 {timing_text}, 叙事弱 -> 回避")
     elif next_earnings and next_earnings.get("days_until") is not None:
         if next_earnings["days_until"] <= 30:
-            drivers.append(f"下次财报 {next_earnings['days_until']} 天后")
+            hour_label = _format_earnings_hour(next_earnings.get("hour"))
+            source_label = _format_earnings_source(next_earnings.get("source"))
+            drivers.append(f"下次财报 {next_earnings['days_until']} 天后{hour_label}{source_label}")
 
     # 限制分数到 0-10
     score = max(0, min(10, score))

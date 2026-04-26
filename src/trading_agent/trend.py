@@ -428,6 +428,8 @@ def build_trend_report(ticker: str, days: int = 90) -> dict:
         "ticker": ticker,
         "symbol": data_report["symbol"],
         "group": data_report["group"],
+        "source": data_report.get("source"),
+        "tradable_on_bitget": data_report.get("tradable_on_bitget"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "data_points": data_report["data_points"],
         "price": {

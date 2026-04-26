@@ -36,6 +36,7 @@
               ↓
 ┌─────────────────────────────────────────────────────────┐
 │  Stage 1: 技术 Gate + 鱼身定位 (trend.py)              │
+│  ├─ K线来源: Bitget RWA 优先; 未上线美股回退 yfinance   │
 │  ├─ 趋势成立? (ADX>=20 + EMA 排列 → Gate)              │
 │  └─ 鱼身位置? (启动时长 + 累计涨幅 + 偏离度)             │
 │  → fish_body.stage (early/mid/late) + ideal_entry       │
@@ -84,6 +85,9 @@ swing NVDA
 # 或直接跑完整 CLI
 uv run trading-agent analyze NVDA
 uv run trading-agent analyze NVDA --json
+
+# 非 Bitget RWA 美股也可完整分析（技术面自动用 yfinance 日K）
+uv run trading-agent analyze CRM --json
 
 # 分步调试命令
 uv run trading-agent fund NVDA      # Stage 0
@@ -196,7 +200,7 @@ trading-agent/
 │   ├── exceptions.py            # 异常层级
 │   ├── utils.py                 # 共用工具函数
 │   ├── symbols.py               # Bitget RWA 品种同步 (68 只)
-│   ├── data.py                  # K 线获取 (Bitget API)
+│   ├── data.py                  # K 线获取 (Bitget RWA + yfinance 美股回退)
 │   ├── fundamentals.py          # Stage 0: 基本面叙事 (yfinance + Finnhub)
 │   ├── trend.py                 # Stage 1: 技术面 + 鱼身定位
 │   ├── logic.py                 # 逻辑强度评分与变化判断
@@ -241,12 +245,13 @@ trading-agent/
 
 | 类型 | 数据源 | 用途 | 限制 |
 |------|--------|------|------|
-| **K 线** | Bitget API (`/api/v2/mix/market/history-candles`) | 价格 + 量能 + 技术指标 | 最多 90 天日 K, 仅 RWA 合约 |
-| **品种列表** | Bitget API (`/api/v2/mix/market/contracts`) | 68 只美股+ETF+大宗商品 | 公开接口, 无需 Key |
-| **基本面** | yfinance | 业绩 / sector / 评级 / 目标价 | 偏爬虫, 偶尔超时 |
-| **财报日历** | Finnhub | 下次财报日 (yfinance 兜底) | 60 次/分钟免费额度 |
+| **K 线** | Bitget API (`/api/v2/mix/market/history-candles`) | Bitget RWA 合约价格 + 量能 + 技术指标 | 最多 90 天日 K, 已上线 RWA 优先使用 |
+| **K 线兜底** | yfinance + `curl_cffi` Chrome session | 未上线 Bitget RWA 的美股现货日 K | `trend_report.source=yfinance`, `tradable_on_bitget=false` |
+| **品种列表** | Bitget API (`/api/v2/mix/market/contracts`) | 已上线 RWA 合约列表 | 公开接口, 无需 Key |
+| **基本面** | yfinance | 业绩 / sector / 评级 / 目标价 | 建议走代理以降低 Yahoo 限流 |
+| **财报日历** | Finnhub | 下次财报日兜底 + 财报时段/预期字段 | 60 次/分钟免费额度 |
 
-> **数据约束**: 技术分析仅限 Bitget 已上线的 68 个 RWA 合约品种 (50 美股 + 12 ETF + 6 大宗商品)。
+> **数据约束**: Bitget 已上线 RWA 标的使用 Bitget 合约 K 线；不在 RWA 列表的普通美股会自动回退到 yfinance 现货 K 线，可完整跑 `analyze`，但报告会标记 `tradable_on_bitget=false`。
 > 大宗商品 (XAU/XAG/COPPER 等) 不做基本面分析 (无财报概念)。
 
 ---

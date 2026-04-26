@@ -14,6 +14,13 @@ import sys
 import time
 from datetime import datetime, timezone
 
+import yfinance as yf
+try:
+    from curl_cffi import requests as _curl_requests
+    _YF_SESSION = _curl_requests.Session(impersonate="chrome")
+except Exception:
+    _YF_SESSION = None
+
 from .exceptions import DataError, ValidationError
 from .symbols import lookup_symbol
 from .utils import make_request
@@ -123,14 +130,16 @@ def fetch_all_candles(symbol: str, days: int = 90) -> list[dict]:
 
 
 def build_report(ticker: str, symbol_info: dict, candles: list[dict],
-                 requested_days: int = 0) -> dict:
+                 requested_days: int = 0, source: str = "bitget",
+                 tradable_on_bitget: bool = True) -> dict:
     """构建输出报告"""
     report = {
         "status": "success",
         "ticker": ticker,
         "symbol": symbol_info["symbol"],
         "group": symbol_info["group"],
-        "source": "bitget",
+        "source": source,
+        "tradable_on_bitget": tradable_on_bitget,
         "data_points": len(candles),
         "requested_days": requested_days,
         "partial": bool(requested_days and len(candles) < requested_days),
@@ -158,6 +167,53 @@ def build_report(ticker: str, symbol_info: dict, candles: list[dict],
     return report
 
 
+def _coerce_yfinance_date(value) -> str:
+    """将 yfinance 返回的日期索引/字段转成 YYYY-MM-DD。"""
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    return str(value)[:10]
+
+
+def fetch_yfinance_candles(ticker: str, days: int = 90) -> list[dict]:
+    """用 yfinance 获取任意美股现货日 K，返回统一 OHLCV 格式。"""
+    period = f"{max(days, 1)}d"
+    try:
+        yf_obj = yf.Ticker(ticker, session=_YF_SESSION)
+        hist = yf_obj.history(period=period, interval="1d", auto_adjust=False)
+    except Exception as e:
+        raise DataError(f"yfinance 获取 '{ticker}' 日K失败: {e}") from e
+
+    if hist is None or getattr(hist, "empty", False):
+        raise DataError(f"yfinance 未获取到 '{ticker}' 日K数据。")
+
+    rows = []
+    try:
+        iterable = hist.reset_index().iterrows()
+    except Exception as e:
+        raise DataError(f"yfinance 日K格式异常: {e}") from e
+
+    for _, row in iterable:
+        try:
+            date_value = row.get("Date") or row.get("Datetime")
+            date_str = _coerce_yfinance_date(date_value)
+            dt = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+            rows.append({
+                "timestamp": int(dt.timestamp() * 1000),
+                "date": date_str,
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"]),
+                "volume": float(row.get("Volume", 0) or 0),
+                "quote_volume": float(row.get("Volume", 0) or 0) * float(row["Close"]),
+            })
+        except Exception:
+            continue
+
+    rows.sort(key=lambda x: x["timestamp"])
+    return rows[-days:]
+
+
 # ---------------------------------------------------------------------------
 # 公开接口 (供其他模块调用)
 # ---------------------------------------------------------------------------
@@ -176,22 +232,34 @@ def get_candle_data(ticker: str, days: int = 90) -> dict:
         ValidationError: ticker 不在 Bitget 品种列表中
         DataError: 数据获取失败
     """
-    # 品种校验
+    # 优先使用 Bitget RWA 合约 K 线；未上线的美股自动回退到 yfinance 现货日 K。
     symbol_info = lookup_symbol(ticker)
-    if symbol_info is None:
-        raise ValidationError(
-            f"品种 '{ticker}' 不在 Bitget RWA 合约列表中，无法交易。"
-            f" 使用 'uv run trading-agent sync --quiet' 查看可用品种。"
+    if symbol_info is not None:
+        symbol = symbol_info["symbol"]
+        candles = fetch_all_candles(symbol, days=days)
+        if not candles:
+            raise DataError(f"品种 '{ticker}' ({symbol}) 未获取到任何 K 线数据。")
+        return build_report(
+            ticker,
+            symbol_info,
+            candles,
+            requested_days=days,
+            source="bitget",
+            tradable_on_bitget=True,
         )
 
-    # 获取数据
-    symbol = symbol_info["symbol"]
-    candles = fetch_all_candles(symbol, days=days)
-
+    candles = fetch_yfinance_candles(ticker, days=days)
     if not candles:
-        raise DataError(f"品种 '{ticker}' ({symbol}) 未获取到任何 K 线数据。")
+        raise DataError(f"品种 '{ticker}' 未获取到任何 yfinance 日K数据。")
 
-    return build_report(ticker, symbol_info, candles, requested_days=days)
+    return build_report(
+        ticker,
+        {"symbol": ticker, "group": "us_stock"},
+        candles,
+        requested_days=days,
+        source="yfinance",
+        tradable_on_bitget=False,
+    )
 
 
 # ---------------------------------------------------------------------------
