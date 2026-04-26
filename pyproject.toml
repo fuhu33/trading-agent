@@ -6,7 +6,8 @@ requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.2",
     "numpy>=1.26",
-    "yfinance>=0.2.40",
+    "yfinance>=0.2.55",
+    "curl_cffi>=0.7",
     "python-dotenv>=1.0",
 ]
 

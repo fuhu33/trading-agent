@@ -21,6 +21,12 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import yfinance as yf
+try:
+    from curl_cffi import requests as _curl_requests
+    _YF_SESSION = _curl_requests.Session(impersonate="chrome")
+except Exception:
+    _YF_SESSION = None  # curl_cffi 不可用时回退到 yfinance 默认 requests
+
 from dotenv import load_dotenv
 
 from .utils import safe_float, make_request
@@ -234,7 +240,7 @@ def fetch_etf_trend(etf_ticker: str) -> dict | None:
     if not etf_ticker:
         return None
     try:
-        yf_obj = yf.Ticker(etf_ticker)
+        yf_obj = yf.Ticker(etf_ticker, session=_YF_SESSION)
         hist = yf_obj.history(period="2mo", interval="1d")
         if hist.empty or len(hist) < 21:
             return None
@@ -450,7 +456,7 @@ def build_fundamentals_report(ticker: str, force_refresh: bool = False) -> dict:
             return cached
 
     # 统一创建 yf.Ticker (单例化, 避免 3 次实例化)
-    yf_obj = yf.Ticker(ticker)
+    yf_obj = yf.Ticker(ticker, session=_YF_SESSION)
 
     # 1. 基础信息
     info = _extract_info(yf_obj)
