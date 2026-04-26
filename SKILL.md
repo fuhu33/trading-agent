@@ -33,7 +33,8 @@ swing scan --group mega_cap — 大盘科技股 (7)
 swing scan AAPL,MSFT,NVDA   — 指定品种
 ```
 
-> **数据约束**: 技术面优先使用 Bitget 已上线 RWA 合约 K 线；不在 RWA 列表的普通美股自动回退到 yfinance 现货日 K，并在 `trend_report.source` / `tradable_on_bitget` 中标记来源与是否可在 Bitget 交易。基本面来自 yfinance + Finnhub。
+> **数据约束**: 单标的美股/ETF 技术面默认使用 yfinance 现货日 K 作为主分析源，并在 `trend_report.tradable_on_bitget` / `bitget_symbol` 标记是否可在 Bitget RWA 交易；商品类默认使用 Bitget K 线。基本面来自 yfinance + Finnhub。
+> **扫描约束**: 批量扫描默认只扫描 Bitget RWA 范围，除非用户明确要求扩大或显式给出自定义 ticker 列表。
 > **策略边界**: 当前框架默认只评估做多波段；`bearish` 趋势用于回避/观察，不主动输出做空建议。
 > **当前边界**: `report`、`job`、自动通知、自动下单仍是后续规划能力，不属于当前已实现 CLI。
 
@@ -138,7 +139,7 @@ src/trading_agent/
 ├── exceptions.py       # 异常层级
 ├── utils.py            # 共用工具函数
 ├── symbols.py          # 品种同步 (Bitget API)
-├── data.py             # K 线获取 (Bitget RWA + yfinance 美股回退)
+├── data.py             # K 线获取 (yfinance 美股/ETF 主源 + Bitget 商品/可交易映射)
 ├── trend.py            # 技术面 + 鱼身定位
 ├── fundamentals.py     # 基本面叙事 (yfinance + Finnhub)
 ├── logic.py            # 逻辑强度评分与变化判断

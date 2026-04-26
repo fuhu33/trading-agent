@@ -131,7 +131,8 @@ def fetch_all_candles(symbol: str, days: int = 90) -> list[dict]:
 
 def build_report(ticker: str, symbol_info: dict, candles: list[dict],
                  requested_days: int = 0, source: str = "bitget",
-                 tradable_on_bitget: bool = True) -> dict:
+                 tradable_on_bitget: bool = True,
+                 bitget_symbol: str | None = None) -> dict:
     """构建输出报告"""
     report = {
         "status": "success",
@@ -139,7 +140,9 @@ def build_report(ticker: str, symbol_info: dict, candles: list[dict],
         "symbol": symbol_info["symbol"],
         "group": symbol_info["group"],
         "source": source,
+        "analysis_source": source,
         "tradable_on_bitget": tradable_on_bitget,
+        "bitget_symbol": bitget_symbol,
         "data_points": len(candles),
         "requested_days": requested_days,
         "partial": bool(requested_days and len(candles) < requested_days),
@@ -232,8 +235,27 @@ def get_candle_data(ticker: str, days: int = 90) -> dict:
         ValidationError: ticker 不在 Bitget 品种列表中
         DataError: 数据获取失败
     """
-    # 优先使用 Bitget RWA 合约 K 线；未上线的美股自动回退到 yfinance 现货日 K。
+    # 数据源策略：美股/ETF 用 yfinance 做主分析源；Bitget 仅保留可交易性与合约映射。
+    # 商品仍用 Bitget，避免 XAU/NATGAS 等 ticker 在 yfinance 上存在映射歧义。
     symbol_info = lookup_symbol(ticker)
+    group = symbol_info.get("group") if symbol_info else "us_stock"
+    bitget_symbol = symbol_info.get("symbol") if symbol_info else None
+    tradable_on_bitget = symbol_info is not None
+
+    if group in ("stock", "etf", "us_stock"):
+        candles = fetch_yfinance_candles(ticker, days=days)
+        if not candles:
+            raise DataError(f"品种 '{ticker}' 未获取到任何 yfinance 日K数据。")
+        return build_report(
+            ticker,
+            {"symbol": ticker, "group": group},
+            candles,
+            requested_days=days,
+            source="yfinance",
+            tradable_on_bitget=tradable_on_bitget,
+            bitget_symbol=bitget_symbol,
+        )
+
     if symbol_info is not None:
         symbol = symbol_info["symbol"]
         candles = fetch_all_candles(symbol, days=days)
@@ -246,19 +268,11 @@ def get_candle_data(ticker: str, days: int = 90) -> dict:
             requested_days=days,
             source="bitget",
             tradable_on_bitget=True,
+            bitget_symbol=symbol,
         )
 
-    candles = fetch_yfinance_candles(ticker, days=days)
-    if not candles:
-        raise DataError(f"品种 '{ticker}' 未获取到任何 yfinance 日K数据。")
-
-    return build_report(
-        ticker,
-        {"symbol": ticker, "group": "us_stock"},
-        candles,
-        requested_days=days,
-        source="yfinance",
-        tradable_on_bitget=False,
+    raise ValidationError(
+        f"品种 '{ticker}' 不在 Bitget RWA 商品列表中，且无法按普通美股/ETF 使用 yfinance 解析。"
     )
 
 

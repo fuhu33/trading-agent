@@ -56,28 +56,18 @@ def test_get_candle_data_falls_back_to_yfinance_for_non_bitget_symbol(monkeypatc
     assert report["latest"]["close"] == 11.8
 
 
-def test_get_candle_data_keeps_bitget_priority(monkeypatch):
-    """Bitget RWA 已支持的标的仍优先用 Bitget K 线。"""
+def test_get_candle_data_marks_bitget_tradability_for_supported_stock(monkeypatch):
+    """Bitget RWA 已支持的美股默认仍用 yfinance 分析，但保留 Bitget 合约映射。"""
     monkeypatch.setattr(d, "lookup_symbol", lambda ticker: {
         "symbol": "NVDAUSDT",
         "group": "stock",
         "baseCoin": "NVDA",
     })
-    monkeypatch.setattr(d, "fetch_all_candles", lambda symbol, days: [
-        {
-            "timestamp": 4070908800000,
-            "date": "2099-01-01",
-            "open": 100.0,
-            "high": 101.0,
-            "low": 99.0,
-            "close": 100.5,
-            "volume": 1000.0,
-            "quote_volume": 100500.0,
-        }
-    ])
+    monkeypatch.setattr(d.yf, "Ticker", FakeTicker)
 
     report = d.get_candle_data("NVDA", days=90)
 
-    assert report["source"] == "bitget"
-    assert report["symbol"] == "NVDAUSDT"
+    assert report["source"] == "yfinance"
+    assert report["symbol"] == "NVDA"
     assert report["tradable_on_bitget"] is True
+    assert report["bitget_symbol"] == "NVDAUSDT"
