@@ -15,10 +15,16 @@ wheels/
 # Fundamentals cache (会过期，无需提交)
 config/fundamentals_cache.json
 config/logic_history.json
+config/sentiment_cache.json
 config/yfinance_cache/
+config/yfinance_price_cache/
+config/yfinance_runtime_cache/
+config/sqlite_probe/
+config/write_probe.txt
 
 # Generated reports
 reports/
+generated_reports/
 
 # Runtime state for scheduled jobs
 state/

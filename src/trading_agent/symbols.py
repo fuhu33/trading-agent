@@ -34,6 +34,8 @@ COMMODITY_SYMBOLS = {
     "XAG",     # 白银
     "XPD",     # 钯金
     "XPT",     # 铂金
+    "PAXG",    # PAX Gold
+    "XAUT",    # Tether Gold
     "COPPER",  # 铜
     "NATGAS",  # 天然气
 }

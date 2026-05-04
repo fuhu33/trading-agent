@@ -1,136 +1,144 @@
-"""Bitget 日K数据获取
+"""yfinance 日K数据获取.
 
-从 Bitget API 获取指定品种的日K线历史数据 (OHLCV)。
-仅限 Bitget 已上线的 RWA 合约品种。
+Bitget 在本系统中只用于维护可交易池；所有 OHLCV 行情统一从
+yfinance 获取，避免把交易所合约报价混入美股/ETF/商品分析口径。
 
 用法 (CLI):
     uv run trading-agent data NVDA            # 获取 NVDA 最近 90 天日K
-    uv run trading-agent data AAPL --days 60  # 获取 AAPL 最近 60 天日K
+    uv run trading-agent data XAU --days 120  # 使用 yfinance 黄金代理合约
 """
 
 import argparse
 import json
 import sys
-import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import pandas as pd
 
 from .exceptions import DataError, ValidationError
 from .symbols import lookup_symbol
-from .utils import make_request
-
-# ---------------------------------------------------------------------------
-# 常量
-# ---------------------------------------------------------------------------
-
-API_BASE = "https://api.bitget.com"
-CANDLES_ENDPOINT = "/api/v2/mix/market/history-candles"
-MAX_CANDLES_PER_REQUEST = 200  # Bitget API 单次最多返回 200 条
-REQUEST_TIMEOUT = 15
+from .yfinance_data import fetch_yfinance_ohlcv, normalize_ticker
 
 
-# ---------------------------------------------------------------------------
-# 核心逻辑
-# ---------------------------------------------------------------------------
-
-def fetch_candles_page(symbol: str, granularity: str = "1D",
-                       end_time: int | None = None,
-                       limit: int = MAX_CANDLES_PER_REQUEST) -> list[list]:
-    """获取单页 K 线数据
-
-    返回值: [[timestamp, open, high, low, close, volume_base, volume_quote], ...]
-    按时间从新到旧排列 (Bitget 默认)
-    """
-    params = {
-        "symbol": symbol,
-        "productType": "USDT-FUTURES",
-        "granularity": granularity,
-        "limit": str(limit),
-    }
-    if end_time is not None:
-        params["endTime"] = str(end_time)
-
-    query = "&".join(f"{k}={v}" for k, v in params.items())
-    url = f"{API_BASE}{CANDLES_ENDPOINT}?{query}"
-
-    data = make_request(url, timeout=REQUEST_TIMEOUT)
-
-    if data.get("code") != "00000":
-        raise DataError(f"API 返回错误: {data.get('msg', 'unknown')}")
-
-    return data.get("data", [])
+# Bitget baseCoin -> yfinance symbol. Stocks/ETFs generally use the same ticker.
+YFINANCE_SYMBOL_OVERRIDES = {
+    "COPPER": "HG=F",
+    "NATGAS": "NG=F",
+    "PAXG": "PAXG-USD",
+    "XAG": "SI=F",
+    "XAU": "GC=F",
+    "XAUT": "XAUT-USD",
+    "XPD": "PA=F",
+    "XPT": "PL=F",
+    "STXSTOCK": "STX",
+}
 
 
-def fetch_all_candles(symbol: str, days: int = 90) -> list[dict]:
-    """获取指定天数的全部日K数据，自动分页拼接
+def resolve_yfinance_symbol(ticker: str,
+                            symbol_info: dict[str, Any] | None = None) -> str:
+    """Resolve a Bitget trade-pool ticker to the yfinance market-data symbol."""
+    base = normalize_ticker(ticker)
+    if symbol_info:
+        configured = symbol_info.get("yfinanceSymbol") or symbol_info.get("yfinance_symbol")
+        if configured:
+            return normalize_ticker(configured)
+    return YFINANCE_SYMBOL_OVERRIDES.get(base, base)
 
-    返回值: 按时间从旧到新排列的 OHLCV 字典列表
-    """
-    all_candles = []
-    end_time = None
-    seen_timestamps = set()
 
-    while len(all_candles) < days:
-        remaining = days - len(all_candles)
-        limit = min(remaining, MAX_CANDLES_PER_REQUEST)
+def _history_window(days: int) -> tuple[str, str]:
+    """Return a calendar window wide enough to contain `days` daily bars."""
+    now = datetime.now(timezone.utc)
+    calendar_days = max(int(days * 2.2) + 30, days + 90, 180)
+    start = now - timedelta(days=calendar_days)
+    end = now + timedelta(days=1)
+    return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
 
-        try:
-            page = fetch_candles_page(symbol, end_time=end_time, limit=limit)
-        except Exception:
-            if not all_candles:
-                raise
-            # 已有部分数据，分页获取失败时停止
-            break
 
-        if not page:
-            break
+def _timestamp_ms(value: Any) -> int:
+    ts = pd.to_datetime(value)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize(timezone.utc)
+    else:
+        ts = ts.tz_convert(timezone.utc)
+    return int(ts.timestamp() * 1000)
 
-        new_count = 0
-        for candle in page:
-            ts = int(candle[0])
-            if ts in seen_timestamps:
-                continue
-            seen_timestamps.add(ts)
-            all_candles.append(candle)
-            new_count += 1
 
-        if new_count == 0:
-            break
+def _frame_to_candles(price_frame: pd.DataFrame, yf_symbol: str,
+                      days: int) -> list[dict]:
+    if price_frame.empty:
+        return []
 
-        # 下一页: 用当前页最早的时间戳作为 endTime
-        earliest_ts = min(int(c[0]) for c in page)
-        end_time = earliest_ts - 1  # 减 1ms 避免重复
+    df = price_frame.copy()
+    df["ticker"] = df["ticker"].astype(str).map(normalize_ticker)
+    df = df[df["ticker"] == normalize_ticker(yf_symbol)].copy()
+    if df.empty:
+        return []
 
-        # 请求间隔，避免限流
-        time.sleep(0.3)
+    df["date"] = pd.to_datetime(df["date"])
+    for column in ["open", "high", "low", "close", "volume"]:
+        df[column] = pd.to_numeric(df[column], errors="coerce")
+    df = df.dropna(subset=["date", "open", "high", "low", "close", "volume"])
+    df = df[
+        (df["open"] > 0)
+        & (df["high"] > 0)
+        & (df["low"] > 0)
+        & (df["close"] > 0)
+        & (df["high"] >= df[["open", "close"]].max(axis=1))
+        & (df["low"] <= df[["open", "close"]].min(axis=1))
+        & (df["volume"] >= 0)
+    ]
+    df = df.sort_values("date").tail(days)
 
-    # 转为字典并按时间升序排列
-    result = []
-    for c in all_candles:
-        ts_ms = int(c[0])
-        result.append({
-            "timestamp": ts_ms,
-            "date": datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d"),
-            "open": float(c[1]),
-            "high": float(c[2]),
-            "low": float(c[3]),
-            "close": float(c[4]),
-            "volume": float(c[5]),
-            "quote_volume": float(c[6]),
+    candles = []
+    for row in df.to_dict("records"):
+        close = float(row["close"])
+        volume = float(row["volume"])
+        candles.append({
+            "timestamp": _timestamp_ms(row["date"]),
+            "date": pd.to_datetime(row["date"]).strftime("%Y-%m-%d"),
+            "open": float(row["open"]),
+            "high": float(row["high"]),
+            "low": float(row["low"]),
+            "close": close,
+            "volume": volume,
+            "quote_volume": close * volume,
         })
-
-    result.sort(key=lambda x: x["timestamp"])
-    return result
+    return candles
 
 
-def build_report(ticker: str, symbol_info: dict, candles: list[dict],
-                 requested_days: int = 0) -> dict:
-    """构建输出报告"""
+def fetch_yfinance_candles(ticker: str, days: int = 90,
+                           symbol_info: dict[str, Any] | None = None,
+                           use_cache: bool = True) -> tuple[str, list[dict]]:
+    """Fetch daily candles from yfinance for a Bitget trade-pool ticker."""
+    yf_symbol = resolve_yfinance_symbol(ticker, symbol_info)
+    start, end = _history_window(days)
+    prices = fetch_yfinance_ohlcv(
+        [yf_symbol],
+        start=start,
+        end=end,
+        interval="1d",
+        chunk_size=1,
+        retries=2,
+        retry_sleep=1.0,
+        use_cache=use_cache,
+    )
+    candles = _frame_to_candles(prices, yf_symbol, days)
+    return yf_symbol, candles
+
+
+def build_report(ticker: str, symbol_info: dict, yf_symbol: str,
+                 candles: list[dict], requested_days: int = 0) -> dict:
+    """构建输出报告."""
     report = {
         "status": "success",
         "ticker": ticker,
-        "symbol": symbol_info["symbol"],
+        "symbol": yf_symbol,
+        "market_data_symbol": yf_symbol,
+        "trade_symbol": symbol_info["symbol"],
         "group": symbol_info["group"],
-        "source": "bitget",
+        "source": "yfinance",
+        "trade_pool_source": "bitget",
         "data_points": len(candles),
         "requested_days": requested_days,
         "partial": bool(requested_days and len(candles) < requested_days),
@@ -158,25 +166,12 @@ def build_report(ticker: str, symbol_info: dict, candles: list[dict],
     return report
 
 
-# ---------------------------------------------------------------------------
-# 公开接口 (供其他模块调用)
-# ---------------------------------------------------------------------------
-
 def get_candle_data(ticker: str, days: int = 90) -> dict:
-    """获取指定品种的日K数据，返回完整报告字典
+    """获取指定品种的 yfinance 日K数据，返回完整报告字典.
 
-    Args:
-        ticker: 品种代码 (如 NVDA, AAPL, XAU)
-        days: 获取天数 (默认 90)
-
-    Returns:
-        包含 status, candles 等字段的报告字典
-
-    Raises:
-        ValidationError: ticker 不在 Bitget 品种列表中
-        DataError: 数据获取失败
+    Ticker 必须存在于 Bitget RWA 交易池；Bitget 只用于确认交易池资格。
     """
-    # 品种校验
+    ticker = normalize_ticker(ticker)
     symbol_info = lookup_symbol(ticker)
     if symbol_info is None:
         raise ValidationError(
@@ -184,27 +179,34 @@ def get_candle_data(ticker: str, days: int = 90) -> dict:
             f" 使用 'uv run trading-agent sync --quiet' 查看可用品种。"
         )
 
-    # 获取数据
-    symbol = symbol_info["symbol"]
-    candles = fetch_all_candles(symbol, days=days)
+    yf_symbol, candles = fetch_yfinance_candles(
+        ticker,
+        days=days,
+        symbol_info=symbol_info,
+    )
 
     if not candles:
-        raise DataError(f"品种 '{ticker}' ({symbol}) 未获取到任何 K 线数据。")
+        raise DataError(
+            f"品种 '{ticker}' 的 yfinance 行情为空 "
+            f"(market_data_symbol={yf_symbol})。"
+        )
 
-    return build_report(ticker, symbol_info, candles, requested_days=days)
+    return build_report(
+        ticker,
+        symbol_info,
+        yf_symbol,
+        candles,
+        requested_days=days,
+    )
 
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
-        description="获取 Bitget RWA 品种日K线数据"
+        description="获取 Bitget 交易池品种的 yfinance 日K线数据"
     )
     parser.add_argument("ticker", help="品种代码 (如 NVDA, AAPL, XAU)")
     parser.add_argument("--days", type=int, default=90,
-                        help="获取天数 (默认: 90, 最大约 90)")
+                        help="获取天数 (默认: 90)")
     parser.add_argument("--no-candles", action="store_true",
                         help="不输出完整 K 线数组 (仅输出摘要)")
     args = parser.parse_args()

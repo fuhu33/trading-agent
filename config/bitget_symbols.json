@@ -1,12 +1,12 @@
 {
   "status": "success",
   "source": "bitget_api",
-  "synced_at": "2026-04-25T05:34:55.739838+00:00",
-  "total": 68,
+  "synced_at": "2026-05-04T08:14:03.641152+00:00",
+  "total": 77,
   "groups": {
-    "stock": 50,
+    "stock": 57,
     "etf": 12,
-    "commodity": 6
+    "commodity": 8
   },
   "symbols": [
     {
@@ -26,6 +26,14 @@
       "minTradeUSDT": 5.0
     },
     {
+      "baseCoin": "PAXG",
+      "symbol": "PAXGUSDT",
+      "maxLever": 50,
+      "status": "normal",
+      "group": "commodity",
+      "minTradeUSDT": 5.0
+    },
+    {
       "baseCoin": "XAG",
       "symbol": "XAGUSDT",
       "maxLever": 100,
@@ -37,6 +45,14 @@
       "baseCoin": "XAU",
       "symbol": "XAUUSDT",
       "maxLever": 100,
+      "status": "normal",
+      "group": "commodity",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "XAUT",
+      "symbol": "XAUTUSDT",
+      "maxLever": 75,
       "status": "normal",
       "group": "commodity",
       "minTradeUSDT": 5.0
@@ -194,6 +210,14 @@
       "minTradeUSDT": 5.0
     },
     {
+      "baseCoin": "APLD",
+      "symbol": "APLDUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
       "baseCoin": "APP",
       "symbol": "APPUSDT",
       "maxLever": 20,
@@ -258,6 +282,14 @@
       "minTradeUSDT": 5.0
     },
     {
+      "baseCoin": "CL",
+      "symbol": "CLUSDT",
+      "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
       "baseCoin": "COHR",
       "symbol": "COHRUSDT",
       "maxLever": 20,
@@ -293,6 +325,22 @@
       "baseCoin": "CRCL",
       "symbol": "CRCLUSDT",
       "maxLever": 25,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "CRDO",
+      "symbol": "CRDOUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "CRWV",
+      "symbol": "CRWVUSDT",
+      "maxLever": 20,
       "status": "normal",
       "group": "stock",
       "minTradeUSDT": 5.0
@@ -370,6 +418,14 @@
       "minTradeUSDT": 5.0
     },
     {
+      "baseCoin": "KLAC",
+      "symbol": "KLACUSDT",
+      "maxLever": 20,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
       "baseCoin": "LITE",
       "symbol": "LITEUSDT",
       "maxLever": 20,
@@ -397,6 +453,14 @@
       "baseCoin": "META",
       "symbol": "METAUSDT",
       "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "MP",
+      "symbol": "MPUSDT",
+      "maxLever": 20,
       "status": "normal",
       "group": "stock",
       "minTradeUSDT": 5.0
@@ -453,6 +517,14 @@
       "baseCoin": "NVDA",
       "symbol": "NVDAUSDT",
       "maxLever": 100,
+      "status": "normal",
+      "group": "stock",
+      "minTradeUSDT": 5.0
+    },
+    {
+      "baseCoin": "OKLO",
+      "symbol": "OKLOUSDT",
+      "maxLever": 20,
       "status": "normal",
       "group": "stock",
       "minTradeUSDT": 5.0

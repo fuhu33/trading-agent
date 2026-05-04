@@ -15,7 +15,7 @@ dependencies = [
 # EMA/RSI/MACD/ADX/ATR 用 pandas 原生计算即可, 代码量很少
 #
 # yfinance: Stage 0 基本面数据源 (财报/评级/sector)
-# python-dotenv: 加载 .env 中的 FINNHUB_API_KEY (财报日历补充)
+# python-dotenv: legacy local .env support
 
 [project.scripts]
 trading-agent = "trading_agent.cli:main"

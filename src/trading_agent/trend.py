@@ -1,6 +1,7 @@
 """趋势分析模块
 
-基于 Bitget 日K数据计算技术指标，判断趋势方向/强度，输出结构化 TrendReport。
+基于 yfinance 日K数据计算技术指标，判断趋势方向/强度，输出结构化 TrendReport。
+Bitget 只用于确认可交易池。
 适配 1-2 周波段持仓周期，仅依赖 90 天日K数据。
 
 用法 (CLI):
@@ -427,9 +428,14 @@ def build_trend_report(ticker: str, days: int = 90) -> dict:
         "status": "success",
         "ticker": ticker,
         "symbol": data_report["symbol"],
+        "market_data_symbol": data_report.get("market_data_symbol", data_report["symbol"]),
+        "trade_symbol": data_report.get("trade_symbol"),
         "group": data_report["group"],
+        "source": data_report.get("source", "yfinance"),
+        "trade_pool_source": data_report.get("trade_pool_source", "bitget"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "data_points": data_report["data_points"],
+        "date_range": data_report.get("date_range"),
         "price": {
             "close": round(close, 2),
             "change_pct": change_pct,
@@ -453,7 +459,7 @@ def build_trend_report(ticker: str, days: int = 90) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Bitget RWA 品种趋势分析"
+        description="Bitget 交易池品种的 yfinance 趋势分析"
     )
     parser.add_argument("ticker", help="品种代码 (如 NVDA, AAPL, XAU)")
     parser.add_argument("--days", type=int, default=90,

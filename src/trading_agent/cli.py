@@ -9,6 +9,7 @@
     uv run trading-agent scan [--group mega_cap] [--with-fund]
     uv run trading-agent analyze NVDA
     uv run trading-agent research --group mega_cap --limit 3
+    uv run trading-agent sentiment --tickers AAPL,MSFT,NVDA
     uv run trading-agent watch add NVDA
     uv run trading-agent holding add NVDA --entry 200 --stop 190 --size 10 --initial-logic-score 70
     uv run trading-agent monitor
@@ -30,6 +31,7 @@ def main():
         print("  sync   [--force]             同步 Bitget 品种列表")
         print("  scan   [TICKERS] [--group G] 批量扫描")
         print("  research [--group G]         扫描后深度研究与候选排名")
+        print("  sentiment --tickers SRC      美股参考池情绪指标")
         print("  watch   add/list/remove      观察池管理")
         print("  holding add/list/update/remove 持仓状态管理")
         print("  monitor                      观察池与持仓监控")
@@ -37,6 +39,7 @@ def main():
         print("示例:")
         print("  uv run trading-agent analyze NVDA")
         print("  uv run trading-agent research --group mega_cap --limit 3")
+        print("  uv run trading-agent sentiment --tickers AAPL,MSFT,NVDA --top 3")
         print("  uv run trading-agent watch add NVDA --notes ai")
         print("  uv run trading-agent analyze NVDA --json --output reports/NVDA.json")
         sys.exit(1)
@@ -69,6 +72,9 @@ def main():
     elif command == "research":
         from .research import main as research_main
         research_main()
+    elif command == "sentiment":
+        from .sentiment import main as sentiment_main
+        sentiment_main()
     elif command == "watch":
         from .state import watch_main
         watch_main()
@@ -82,7 +88,7 @@ def main():
         print(f"未知命令: {command}", file=sys.stderr)
         print(
             "可用命令: trend, fund, data, risk, sync, scan, analyze, "
-            "research, watch, holding, monitor",
+            "research, sentiment, watch, holding, monitor",
             file=sys.stderr,
         )
         print("推荐完整分析: uv run trading-agent analyze NVDA", file=sys.stderr)

@@ -90,8 +90,8 @@ def scan_single(ticker: str, with_fund: bool = False) -> dict:
             "gate_reason": report["gate"]["reason"],
         }
 
-        # 仅对通过 Gate 且非大宗商品的品种拉基本面
-        if with_fund and result["gate_pass"] and result["group"] != "commodity":
+        # 仅对通过 Gate 的股票拉基本面；ETF/商品没有单公司财报叙事。
+        if with_fund and result["gate_pass"] and result["group"] == "stock":
             try:
                 fund = build_fundamentals_report(ticker)
                 if fund.get("status") == "success":

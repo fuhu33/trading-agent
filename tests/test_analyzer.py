@@ -18,6 +18,7 @@ def _trend(gate_pass=True):
     return {
         "status": "success",
         "ticker": "NVDA",
+        "group": "stock",
         "price": {"close": 100.0, "change_pct": 1.0},
         "trend": {"direction": "bullish", "strength": "strong", "adx": 30},
         "fish_body": {"stage": "mid", "ideal_entry": True},
@@ -111,6 +112,23 @@ def test_build_analysis_report_marks_noncritical_failures_as_degraded(monkeypatc
         {"component": "logic", "message": "fundamentals unavailable"},
     ]
     assert report["decision_report"]["entry_allowed"] is False
+
+
+def test_build_analysis_report_skips_fundamentals_for_etf(monkeypatch):
+    def fail_fundamentals(*args, **kwargs):
+        raise AssertionError("ETF should not fetch single-company fundamentals")
+
+    etf_trend = _trend()
+    etf_trend["ticker"] = "QQQ"
+    etf_trend["group"] = "etf"
+    monkeypatch.setattr(analyzer, "build_fundamentals_report", fail_fundamentals)
+    monkeypatch.setattr(analyzer, "build_trend_report", lambda *args, **kwargs: etf_trend)
+
+    report = analyzer.build_analysis_report("QQQ", save_history=False)
+
+    assert report["status"] == "success"
+    assert report["fundamentals_report"]["scope"] == "price_only"
+    assert report["fundamentals_report"]["narrative"]["thesis"] == "neutral"
 
 
 def test_render_analysis_markdown_shows_degraded_warnings(monkeypatch):

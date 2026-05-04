@@ -26,14 +26,14 @@ swing monitor       — 监控观察池与持仓
 
 ### 批量扫描
 ```
-swing scan                  — 扫描全部 Bitget RWA (68, 仅技术面)
+swing scan                  — 扫描全部 Bitget RWA (77, 仅技术面)
 swing scan --with-fund      — 扫描 + 基本面 (慢但更准)
-swing scan --group stock    — 仅美股个股 (50)
+swing scan --group stock    — 仅美股个股 (57)
 swing scan --group mega_cap — 大盘科技股 (7)
 swing scan AAPL,MSFT,NVDA   — 指定品种
 ```
 
-> **数据约束**: 技术面分析仅限 Bitget 已上线的 RWA 合约品种 (68 个)。基本面来自 yfinance + Finnhub。
+> **数据约束**: Bitget 仅用于交易池；技术面行情/K 线和基本面数据统一来自 yfinance。
 > **策略边界**: 当前框架默认只评估做多波段；`bearish` 趋势用于回避/观察，不主动输出做空建议。
 > **当前边界**: `report`、`job`、自动通知、自动下单仍是后续规划能力，不属于当前已实现 CLI。
 
@@ -138,9 +138,9 @@ src/trading_agent/
 ├── exceptions.py       # 异常层级
 ├── utils.py            # 共用工具函数
 ├── symbols.py          # 品种同步 (Bitget API)
-├── data.py             # K 线获取 (Bitget API)
+├── data.py             # K 线获取 (yfinance, Bitget 仅校验交易池)
 ├── trend.py            # 技术面 + 鱼身定位
-├── fundamentals.py     # 基本面叙事 (yfinance + Finnhub)
+├── fundamentals.py     # 基本面叙事 (yfinance)
 ├── logic.py            # 逻辑强度评分与变化判断
 ├── history.py          # 本地逻辑强度历史
 ├── decision.py         # 决策引擎与仓位倍数
@@ -174,7 +174,7 @@ tests/
 ├── test_fundamentals.py     # 基本面评分测试
 └── test_scanner.py          # 扫描模块测试
 
-.env                          # FINNHUB_API_KEY (gitignored)
+.env                          # 本地环境配置 (gitignored)
 .env.example                  # 模板
 ```
 

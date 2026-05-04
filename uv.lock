@@ -579,6 +579,7 @@ name = "trading-agent"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [
+    { name = "curl-cffi" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "python-dotenv" },
@@ -593,10 +594,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "curl-cffi", specifier = ">=0.7" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "python-dotenv", specifier = ">=1.0" },
-    { name = "yfinance", specifier = ">=0.2.40" },
+    { name = "yfinance", specifier = ">=0.2.55" },
 ]
 
 [package.metadata.requires-dev]

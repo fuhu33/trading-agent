@@ -1,6 +1,6 @@
 """基本面分析模块 (Stage 0)
 
-通过 yfinance + Finnhub 提取 4 个核心信号:
+通过 yfinance 提取 4 个核心信号:
   1. 业绩面: 最近一次财报 EPS/营收超预期幅度
   2. 预期面: 下次财报日 + 是否在 14 天分析窗口内
   3. 行业面: 所属 sector ETF 趋势 (5日/20日变化)
@@ -15,9 +15,8 @@
 
 import argparse
 import json
-import os
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yfinance as yf
@@ -27,13 +26,10 @@ try:
 except Exception:
     _YF_SESSION = None  # curl_cffi 不可用时回退到 yfinance 默认 requests
 
-from dotenv import load_dotenv
+from .data import resolve_yfinance_symbol
+from .utils import safe_float
 
-from .utils import safe_float, make_request
-
-# 加载 .env (如果存在)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-load_dotenv(_PROJECT_ROOT / ".env")
 
 # ---------------------------------------------------------------------------
 # 配置
@@ -49,9 +45,6 @@ try:
     yf.set_tz_cache_location(str(CACHE_DIR / "yfinance_cache"))
 except Exception:
     pass
-
-FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
-FINNHUB_BASE = "https://finnhub.io/api/v1"
 
 EARNINGS_WINDOW_DAYS = 14  # 1-2 周波段分析窗口
 
@@ -270,43 +263,6 @@ def fetch_etf_trend(etf_ticker: str) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# Finnhub 补充 (如果配置了 Key)
-# ---------------------------------------------------------------------------
-
-def fetch_finnhub_earnings_calendar(ticker: str) -> dict | None:
-    """从 Finnhub 获取财报日历 (yfinance 兜底)"""
-    if not FINNHUB_API_KEY:
-        return None
-
-    today = datetime.now(timezone.utc).date()
-    end = today + timedelta(days=90)
-    url = (f"{FINNHUB_BASE}/calendar/earnings"
-           f"?from={today.isoformat()}&to={end.isoformat()}"
-           f"&symbol={ticker}&token={FINNHUB_API_KEY}")
-    try:
-        data = make_request(url, timeout=10)
-        events = data.get("earningsCalendar", [])
-        if not events:
-            return None
-        events.sort(key=lambda x: x.get("date", ""))
-        for ev in events:
-            try:
-                ev_date = datetime.fromisoformat(ev["date"]).date()
-                if ev_date >= today:
-                    days_until = (ev_date - today).days
-                    return {
-                        "date": ev["date"],
-                        "days_until": days_until,
-                        "in_window": 0 <= days_until <= EARNINGS_WINDOW_DAYS,
-                    }
-            except (ValueError, KeyError):
-                continue
-        return None
-    except Exception:
-        return None
-
-
-# ---------------------------------------------------------------------------
 # 综合评分
 # ---------------------------------------------------------------------------
 
@@ -447,16 +403,17 @@ def build_fundamentals_report(ticker: str, force_refresh: bool = False) -> dict:
         基本面 JSON 报告
     """
     ticker = ticker.upper()
+    market_data_symbol = resolve_yfinance_symbol(ticker)
 
     # 检查缓存
     if not force_refresh:
         cached = get_cached(ticker)
-        if cached is not None:
+        if cached is not None and cached.get("source") == "yfinance":
             cached["_cache_hit"] = True
             return cached
 
     # 统一创建 yf.Ticker (单例化, 避免 3 次实例化)
-    yf_obj = yf.Ticker(ticker, session=_YF_SESSION)
+    yf_obj = yf.Ticker(market_data_symbol, session=_YF_SESSION)
 
     # 1. 基础信息
     info = _extract_info(yf_obj)
@@ -470,8 +427,8 @@ def build_fundamentals_report(ticker: str, force_refresh: bool = False) -> dict:
     # 2. 业绩
     earnings = _extract_earnings(yf_obj)
 
-    # 3. 下次财报 (yfinance 优先, Finnhub 兜底)
-    next_earnings = _extract_next_earnings(yf_obj) or fetch_finnhub_earnings_calendar(ticker)
+    # 3. 下次财报
+    next_earnings = _extract_next_earnings(yf_obj)
 
     # 4. 行业 ETF (industry 优先于 sector)
     industry = info.get("industry")
@@ -510,6 +467,8 @@ def build_fundamentals_report(ticker: str, force_refresh: bool = False) -> dict:
     report = {
         "status": "success",
         "ticker": ticker,
+        "source": "yfinance",
+        "market_data_symbol": market_data_symbol,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "earnings": earnings,
         "next_earnings": next_earnings,

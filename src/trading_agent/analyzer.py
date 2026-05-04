@@ -43,6 +43,28 @@ def _component_warning(component: str, report: dict) -> dict | None:
     }
 
 
+def _non_stock_fundamentals_report(ticker: str, group: str) -> dict:
+    """Return a neutral fundamentals stub for ETFs/commodities."""
+    return {
+        "status": "success",
+        "ticker": ticker.upper(),
+        "scope": "price_only",
+        "message": f"{group} does not have single-company fundamentals",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "earnings": None,
+        "next_earnings": None,
+        "sector": None,
+        "analysts": None,
+        "narrative": {
+            "score": 0,
+            "thesis": "neutral",
+            "earnings_catalyst": False,
+            "drivers": [],
+            "concerns": [f"{group} 无单公司基本面，逻辑强度主要依赖价格验证"],
+        },
+    }
+
+
 def _build_risk_report(
     trend_report: dict,
     decision_report: dict,
@@ -92,11 +114,15 @@ def build_analysis_report(
     """Run the full single-ticker analysis pipeline."""
     ticker = ticker.upper()
 
-    fundamentals_report = build_fundamentals_report(
-        ticker,
-        force_refresh=force_fundamentals,
-    )
     trend_report = build_trend_report(ticker, days=days)
+    group = str(trend_report.get("group") or "stock").lower()
+    if group == "stock":
+        fundamentals_report = build_fundamentals_report(
+            ticker,
+            force_refresh=force_fundamentals,
+        )
+    else:
+        fundamentals_report = _non_stock_fundamentals_report(ticker, group)
     logic_report = build_logic_report(
         ticker,
         fundamentals_report,

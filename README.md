@@ -70,9 +70,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh   # macOS/Linux
 # 2. 同步依赖
 uv sync
 
-# 3. (可选) 配置 Finnhub API Key 提高财报日历可靠性
+# 3. (可选) 配置 .env
 cp .env.example .env
-# 编辑 .env, 填入 FINNHUB_API_KEY (https://finnhub.io 免费注册)
 ```
 
 ### 单只完整分析
@@ -89,6 +88,10 @@ uv run trading-agent analyze NVDA --json
 uv run trading-agent fund NVDA      # Stage 0
 uv run trading-agent trend NVDA     # Stage 1
 uv run trading-agent risk --entry 209 --stop 195 --atr 4.89
+
+# 美股参考池情绪
+uv run trading-agent sentiment --tickers AAPL,MSFT,NVDA,TSLA --top 3
+uv run trading-agent sentiment --tickers config/us_equity_universe.json --top 200 --compare 100,500 --validate
 ```
 
 ### 批量扫描
@@ -100,7 +103,7 @@ uv run trading-agent scan --group mega_cap --delay 1.5
 # 技术面 + 基本面 (慢但更准, 约 3-5 分钟)
 uv run trading-agent scan --group mega_cap --delay 1.5 --with-fund
 
-# 全量 RWA 品种 (68 只, 约 10 分钟)
+# 全量 RWA 品种 (77 只, 约 10 分钟)
 uv run trading-agent scan --with-fund --delay 1.5
 ```
 
@@ -134,6 +137,8 @@ uv run trading-agent monitor
 | `uv run trading-agent scan --group mega_cap` | 批量趋势扫描 |
 | `uv run trading-agent scan --with-fund` | 扫描 + 基本面摘要 |
 | `uv run trading-agent research --group mega_cap --limit 3` | 扫描后深度研究与候选排名 |
+| `uv run trading-agent sentiment --tickers AAPL,MSFT,NVDA --top 3` | yfinance 美股参考池情绪指标 |
+| `uv run trading-agent sentiment --tickers config/us_equity_universe.json --top 200 --compare 100,500 --validate` | Top200 情绪 + 宽窄对比 + 轻量历史验证 |
 | `uv run trading-agent watch add NVDA` | 添加观察标的 |
 | `uv run trading-agent holding add NVDA --entry 200 --stop 190 --size 10 --initial-logic-score 72` | 添加持仓状态 |
 | `uv run trading-agent monitor` | 监控观察池与持仓 |
@@ -188,16 +193,18 @@ trading-agent/
 ├── TODO.md                      # 历史开发追踪
 ├── AGENT_FRAMEWORK_TODO.md      # Agent 框架优化追踪
 ├── pyproject.toml               # 依赖管理 (uv + hatchling)
-├── .env.example / .env          # Finnhub API Key (.env gitignored)
+├── .env.example / .env          # 本地环境配置 (.env gitignored)
 │
 ├── src/trading_agent/           # 核心包
 │   ├── __init__.py              # 包入口
 │   ├── cli.py                   # 统一 CLI 入口
 │   ├── exceptions.py            # 异常层级
 │   ├── utils.py                 # 共用工具函数
-│   ├── symbols.py               # Bitget RWA 品种同步 (68 只)
+│   ├── symbols.py               # Bitget RWA 品种同步 (77 只)
 │   ├── data.py                  # K 线获取 (Bitget API)
-│   ├── fundamentals.py          # Stage 0: 基本面叙事 (yfinance + Finnhub)
+│   ├── yfinance_data.py         # yfinance OHLCV 标准化与 ticker master 读取
+│   ├── sentiment.py             # 美股参考池情绪指标
+│   ├── fundamentals.py          # Stage 0: 基本面叙事 (yfinance)
 │   ├── trend.py                 # Stage 1: 技术面 + 鱼身定位
 │   ├── logic.py                 # 逻辑强度评分与变化判断
 │   ├── history.py               # 本地逻辑强度历史
@@ -222,6 +229,9 @@ trading-agent/
 │   ├── test_logic.py
 │   ├── test_monitor.py
 │   ├── test_research.py
+│   ├── test_sentiment.py
+│   ├── test_sentiment_cli.py
+│   ├── test_yfinance_data.py
 │   ├── test_risk_calculator.py
 │   ├── test_state.py
 │   ├── test_trend_analysis.py
@@ -241,13 +251,27 @@ trading-agent/
 
 | 类型 | 数据源 | 用途 | 限制 |
 |------|--------|------|------|
-| **K 线** | Bitget API (`/api/v2/mix/market/history-candles`) | 价格 + 量能 + 技术指标 | 最多 90 天日 K, 仅 RWA 合约 |
-| **品种列表** | Bitget API (`/api/v2/mix/market/contracts`) | 68 只美股+ETF+大宗商品 | 公开接口, 无需 Key |
-| **基本面** | yfinance | 业绩 / sector / 评级 / 目标价 | 偏爬虫, 偶尔超时 |
-| **财报日历** | Finnhub | 下次财报日 (yfinance 兜底) | 60 次/分钟免费额度 |
+| **K 线** | yfinance OHLCV | 交易池标的价格 + 量能 + 技术指标 | Bitget 只做交易池，行情不取 Bitget 合约 K 线 |
+| **品种列表** | Bitget API (`/api/v2/mix/market/contracts`) | 77 只 RWA: 57 stock + 12 ETF + 8 commodity | 公开接口, 无需 Key，仅用于交易池 |
+| **市场情绪** | yfinance OHLCV + 外部 ticker master | 美股前排参考池攻击/回头、广度、新高新低、MA20 修复 | yfinance 偶尔超时，ticker master 需维护 |
+| **基本面** | yfinance | 业绩 / sector / 评级 / 目标价 / 财报日历 | 偏爬虫, 偶尔超时 |
 
-> **数据约束**: 技术分析仅限 Bitget 已上线的 68 个 RWA 合约品种 (50 美股 + 12 ETF + 6 大宗商品)。
+> **数据约束**: 技术分析仅限 Bitget 已上线的 RWA 合约品种，但行情/K 线统一使用 yfinance。情绪指标使用 yfinance 美股参考池，Bitget 股票池只作为交易池。
 > 大宗商品 (XAU/XAG/COPPER 等) 不做基本面分析 (无财报概念)。
+
+`sentiment` 命令支持 yfinance 分块、重试和本地价格缓存：
+
+```bash
+uv run trading-agent sentiment \
+  --tickers config/us_equity_universe.json \
+  --top 200 \
+  --compare 100,500 \
+  --chunk-size 80 \
+  --retries 2 \
+  --validate \
+  --benchmarks SPY,QQQ \
+  --forward 1,3,5
+```
 
 ---
 
